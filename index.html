@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Baseline Analysis - ISO 50001</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<style>
+:root{--primary:#1565c0;--success:#2e7d32;--warning:#f57c00;--danger:#c62828;--bg:#f5f7fa;--card:#fff;--text:#212121;--border:#e0e0e0;--radius:10px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Tahoma,sans-serif;background:var(--bg);color:var(--text);line-height:1.6;padding:20px}
+.container{max-width:1400px;margin:0 auto}
+h1{text-align:center;color:var(--primary);margin-bottom:8px;font-size:1.8em}
+.subtitle{text-align:center;color:#666;margin-bottom:20px}
+.card{background:var(--card);border-radius:var(--radius);padding:20px;margin-bottom:20px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.card h2{color:var(--primary);margin-bottom:12px;font-size:1.3em;border-bottom:2px solid var(--primary);padding-bottom:6px}
+.card h3{color:#333;margin:16px 0 8px;font-size:1.1em}
+.upload-area{border:2px dashed var(--border);border-radius:var(--radius);padding:40px;text-align:center;cursor:pointer;transition:.3s}
+.upload-area:hover{border-color:var(--primary);background:#e3f2fd}
+.upload-area input{display:none}
+.btn{display:inline-block;padding:8px 20px;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;transition:.2s}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-primary:hover{background:#0d47a1}
+.btn-success{background:var(--success);color:#fff}
+.btn-warning{background:var(--warning);color:#fff}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-sm{padding:5px 12px;font-size:12px}
+.tabs{display:flex;gap:4px;margin-bottom:16px;flex-wrap:wrap}
+.tab{padding:8px 16px;border:none;background:#e0e0e0;border-radius:6px 6px 0 0;cursor:pointer;font-weight:500}
+.tab.active{background:var(--primary);color:#fff}
+.tab-content{display:none}
+.tab-content.active{display:block}
+table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px}
+th,td{padding:8px 10px;border:1px solid var(--border);text-align:center}
+th{background:#e3f2fd;font-weight:600}
+tr:nth-child(even){background:#fafafa}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin:12px 0}
+.stat-box{background:#f8f9fa;border-radius:8px;padding:12px;text-align:center;border-left:4px solid var(--primary)}
+.stat-box .label{font-size:12px;color:#666}
+.stat-box .value{font-size:1.4em;font-weight:700;color:var(--primary)}
+.pass{color:var(--success);font-weight:700}
+.fail{color:var(--danger);font-weight:700}
+.chart-container{position:relative;height:350px;margin:10px 0}
+.month-select{padding:6px 12px;border-radius:6px;border:1px solid var(--border);font-size:14px}
+.flex-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600}
+.badge-pass{background:#e8f5e9;color:var(--success)}
+.badge-fail{background:#ffebee;color:var(--danger)}
+select{padding:6px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px}
+.hidden{display:none}
+#loading{display:none;text-align:center;padding:20px;font-size:16px;color:var(--primary)}
+.anomaly-high{background:#ffebee !important}
+.anomaly-low{background:#e8f5e9 !important}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>⚡ Energy Baseline Analysis</h1>
+<p class="subtitle">ISO 50001 / EnMS — Simple & Multiple Linear Regression</p>
+
+<!-- Step 1: Upload -->
+<div class="card" id="step1Card">
+<h2>📁 ขั้นตอนที่ 1: นำเข้าข้อมูล</h2>
+<div class="upload-area" id="uploadArea">
+<p style="font-size:48px">📂</p>
+<p><strong>คลิกหรือลากไฟล์ Excel มาที่นี่</strong></p>
+<p style="color:#888;font-size:13px">รองรับไฟล์ F-RCMDS-C-015 (หลายไฟล์/หลายเดือน)</p>
+<input type="file" id="fileInput" accept=".xlsx,.xls" multiple>
+</div>
+<div id="fileList" style="margin-top:12px"></div>
+</div>
+
+<div id="loading">⏳ กำลังประมวลผล...</div>
+
+<!-- Step 2: Data Preview -->
+<div class="card hidden" id="step2Card">
+<h2>📊 ขั้นตอนที่ 2: ตรวจสอบข้อมูล</h2>
+<div id="previewArea"></div>
+</div>
+
+<!-- Step 3: Analysis -->
+<div class="card hidden" id="step3Card">
+<h2>📈 ขั้นตอนที่ 3: ผลการวิเคราะห์</h2>
+<div class="flex-row" style="margin-bottom:16px">
+<label>ช่วงเดือนที่วิเคราะห์:</label>
+<select id="monthRangeSelect" class="month-select"></select>
+<button class="btn btn-primary btn-sm" onclick="reAnalyze()">วิเคราะห์ใหม่</button>
+<button class="btn btn-success btn-sm" onclick="exportExcel()">📥 Export Excel</button>
+</div>
+<div class="tabs" id="mainTabs">
+<button class="tab active" onclick="switchTab('combined')">รวมทุกเดือน</button>
+<button class="tab" onclick="switchTab('permonth')">รายเดือน</button>
+<button class="tab" onclick="switchTab('comparison')">เปรียบเทียบ</button>
+<button class="tab" onclick="switchTab('trend')">แนวโน้ม</button>
+<button class="tab" onclick="switchTab('product')">วิเคราะห์ผลิตภัณฑ์</button>
+</div>
+<div class="tab-content active" id="tab-combined"></div>
+<div class="tab-content" id="tab-permonth"></div>
+<div class="tab-content" id="tab-comparison"></div>
+<div class="tab-content" id="tab-trend"></div>
+<div class="tab-content" id="tab-product"></div>
+</div>
+</div>
+
+<script>
+// ========== CONSTANTS ==========
+var THAI_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+var fixedNames = {
+  0:'No.', 1:'Date', 2:'Machine', 3:'Product',
+  4:'Meter Start', 5:'Meter End', 6:'Actual', 7:'Total kWh',
+  8:'Time Start', 9:'Time End', 10:'Time use',
+  11:'Batch', 12:'Time (min)', 13:'Thickness', 14:'Weight Input', 15:'Width'
+};
+var FIXED_Y_COL = 7; // Total kWh (sum of both meters)
+var FIXED_X_COLS = [11, 12, 13, 14, 15]; // Batch, Time(min), Thickness, Weight Input, Width
+
+var allMonths = {}; // key: "เดือน ปี" -> array of row objects
+var R = null; // analysis results
+
+// ========== FILE UPLOAD ==========
+var uploadArea = document.getElementById('uploadArea');
+var fileInput = document.getElementById('fileInput');
+uploadArea.addEventListener('click', function(){ fileInput.click(); });
+uploadArea.addEventListener('dragover', function(e){ e.preventDefault(); uploadArea.style.borderColor='#1565c0'; });
+uploadArea.addEventListener('dragleave', function(){ uploadArea.style.borderColor=''; });
+uploadArea.addEventListener('drop', function(e){ e.preventDefault(); uploadArea.style.borderColor=''; handleFiles(e.dataTransfer.files); });
+fileInput.addEventListener('change', function(){ handleFiles(this.files); });
+
+function handleFiles(files) {
+  document.getElementById('loading').style.display = 'block';
+  var queue = Array.from(files);
+  function next() {
+    if (queue.length === 0) { afterImport(); return; }
+    var f = queue.shift();
+    var reader = new FileReader();
+    reader.onload = function(e) { processExcel(e.target.result, f.name); next(); };
+    reader.readAsArrayBuffer(f);
+  }
+  next();
+}
+
+function processExcel(data, filename) {
+  var wb = XLSX.read(data, {type:'array', cellDates:false, raw:true});
+  var ws = wb.Sheets[wb.SheetNames[0]];
+  var aoa = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, cellDates:false});
+  
+  // Find data start (first row where col 0 = 1)
+  var startRow = -1;
+  for (var i = 0; i < Math.min(aoa.length, 20); i++) {
+    if (aoa[i] && (aoa[i][0] === 1 || aoa[i][0] === '1')) { startRow = i; break; }
+  }
+  if (startRow < 0) return;
+  
+  // Process rows
+  for (var i = startRow; i < aoa.length; i++) {
+    var row = aoa[i];
+    if (!row || row.length < 7) continue;
+    var no = parseFloat(row[0]);
+    if (no !== 1 && no !== 0) continue;
+    
+    if (no === 1) {
+      // Main row - has all data
+      var obj = {};
+      for (var c = 0; c < Math.min(row.length, 16); c++) {
+        var name = fixedNames[c] || ('Col' + c);
+        obj[name] = row[c];
+      }
+      // Also grab extra cols if available
+      for (var c = 16; c < row.length; c++) {
+        obj['Col' + c] = row[c];
+      }
+      
+      // Parse date to determine month key
+      var dateVal = row[1];
+      var parsed = parseDateValue(dateVal);
+      if (!parsed) continue;
+      
+      var monthKey = THAI_MONTHS[parsed.month - 1] + (parsed.beYear % 100);
+      if (!allMonths[monthKey]) allMonths[monthKey] = [];
+      allMonths[monthKey].push(obj);
+    }
+    // Sub-rows (No.=0) are for the second meter - their energy is already included in col 7 (Total kWh) of the main row
+    // So we skip sub-rows entirely - Total kWh already has the combined value
+  }
+  
+  // Show in file list
+  var fl = document.getElementById('fileList');
+  fl.innerHTML += '<span class="badge badge-pass">✓ ' + filename + '</span> ';
+}
+
+function parseDateValue(v) {
+  if (typeof v === 'number') {
+    // Excel serial: CE range 15000-70000, BE range 200000-270000
+    if ((v > 15000 && v < 70000) || (v > 200000 && v < 270000)) {
+      var d = new Date((v - 25569) * 86400000);
+      if (!isNaN(d.getTime())) {
+        var ceYear = d.getUTCFullYear();
+        var beYear = ceYear >= 2400 ? ceYear : ceYear + 543;
+        return { month: d.getUTCMonth() + 1, beYear: beYear, day: d.getUTCDate() };
+      }
+    }
+  }
+  if (typeof v === 'string') {
+    // Try Thai format like "1/3/2569" or "01-มี.ค.-69"
+    var parts = v.split(/[\/\-]/);
+    if (parts.length >= 3) {
+      var y = parseInt(parts[2]);
+      var m = parseInt(parts[1]);
+      if (y < 100) y += 2500;
+      if (y > 2400) return { month: m, beYear: y, day: parseInt(parts[0]) };
+    }
+  }
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    var ceYear = v.getFullYear();
+    var beYear = ceYear >= 2400 ? ceYear : ceYear + 543;
+    return { month: v.getMonth() + 1, beYear: beYear, day: v.getDate() };
+  }
+  return null;
+}
+
+function isThaiMonthKey(k) {
+  for (var i = 0; i < THAI_MONTHS.length; i++) {
+    if (k.indexOf(THAI_MONTHS[i]) === 0) return true;
+  }
+  return false;
+}
+
+function afterImport() {
+  document.getElementById('loading').style.display = 'none';
+  
+  var keys = Object.keys(allMonths).filter(isThaiMonthKey);
+  if (keys.length === 0) { alert('ไม่พบข้อมูลที่สามารถวิเคราะห์ได้'); return; }
+  
+  // Sort month keys
+  keys.sort(function(a, b) { return monthKeyToNum(a) - monthKeyToNum(b); });
+  
+  // Show preview
+  showPreview(keys);
+  
+  // Populate month range dropdown
+  var sel = document.getElementById('monthRangeSelect');
+  sel.innerHTML = '<option value="all">ทุกเดือน (' + keys.length + ' เดือน)</option>';
+  keys.forEach(function(k) {
+    sel.innerHTML += '<option value="' + k + '">' + k + '</option>';
+  });
+  
+  document.getElementById('step2Card').classList.remove('hidden');
+  document.getElementById('step3Card').classList.remove('hidden');
+  
+  runAnalysis(keys);
+}
+
+function monthKeyToNum(k) {
+  for (var i = 0; i < THAI_MONTHS.length; i++) {
+    if (k.indexOf(THAI_MONTHS[i]) === 0) {
+      var yr = parseInt(k.replace(THAI_MONTHS[i], ''));
+      return yr * 100 + (i + 1);
+    }
+  }
+  return 0;
+}
+
+function showPreview(keys) {
+  var html = '<div class="stat-grid">';
+  var totalRows = 0, totalKwh = 0;
+  keys.forEach(function(k) { 
+    totalRows += allMonths[k].length;
+    allMonths[k].forEach(function(r) { totalKwh += parseFloat(r['Total kWh']) || 0; });
+  });
+  html += '<div class="stat-box"><div class="label">จำนวนเดือน</div><div class="value">' + keys.length + '</div></div>';
+  html += '<div class="stat-box"><div class="label">จำนวนข้อมูล</div><div class="value">' + totalRows + '</div></div>';
+  html += '<div class="stat-box"><div class="label">รวม kWh</div><div class="value">' + totalKwh.toFixed(2) + '</div></div>';
+  html += '</div>';
+  
+  // Show per-month summary
+  html += '<table><tr><th>เดือน</th><th>จำนวนแถว</th><th>รวม kWh</th><th>เบอร์ยาง</th></tr>';
+  keys.forEach(function(k) {
+    var rows = allMonths[k];
+    var kwh = rows.reduce(function(s, r) { return s + (parseFloat(r['Total kWh']) || 0); }, 0);
+    var products = {};
+    rows.forEach(function(r) { if (r['Product']) products[r['Product']] = 1; });
+    html += '<tr><td>' + k + '</td><td>' + rows.length + '</td><td>' + kwh.toFixed(2) + '</td><td>' + Object.keys(products).length + '</td></tr>';
+  });
+  html += '</table>';
+  document.getElementById('previewArea').innerHTML = html;
+}
+
+// ========== REGRESSION ==========
+function runAnalysis(keys) {
+  var allData = [];
+  keys.forEach(function(k) {
+    allMonths[k].forEach(function(r) { allData.push(r); });
+  });
+  
+  R = { months: keys, allData: allData, perMonth: {}, combined: null };
+  
+  // Combined regression
+  R.combined = doRegression(allData);
+  
+  // Per-month regression
+  keys.forEach(function(k) {
+    R.perMonth[k] = doRegression(allMonths[k]);
+  });
+  
+  renderCombined();
+  renderProduct();
+}
+
+function doRegression(data) {
+  // Y = Total kWh, X = auto-detected variables (skip columns with >50% NaN)
+
+  // Step 1: Detect which X columns have enough data
+  var activeXCols = [];
+  var activeXIndices = []; // index into FIXED_X_COLS
+  FIXED_X_COLS.forEach(function(c, idx) {
+    var validCount = 0;
+    data.forEach(function(r) {
+      var v = parseFloat(r[fixedNames[c]]);
+      if (!isNaN(v)) validCount++;
+    });
+    if (validCount > data.length * 0.5) {
+      activeXCols.push(c);
+      activeXIndices.push(idx);
+    }
+  });
+
+  if (activeXCols.length === 0) activeXCols = [FIXED_X_COLS[0]]; // fallback to Batch
+
+  // Step 2: Build valid rows using only active X columns
+  var validRows = [];
+  data.forEach(function(r) {
+    var y = parseFloat(r['Total kWh']);
+    if (isNaN(y) || y <= 0) return;
+    var xs = [];
+    var valid = true;
+    activeXCols.forEach(function(c) {
+      var v = parseFloat(r[fixedNames[c]]);
+      if (isNaN(v)) valid = false;
+      else xs.push(v);
+    });
+    if (valid) validRows.push({ y: y, xs: xs, row: r });
+  });
+
+  if (validRows.length < 3) return { valid: false, n: validRows.length, data: validRows, activeXCols: activeXCols };
+
+  var n = validRows.length;
+  var k = activeXCols.length;
+
+  // Simple regression (best single X)
+  var bestSimple = null;
+  for (var xi = 0; xi < k; xi++) {
+    var sr = simpleRegression(validRows, xi);
+    sr.xName = fixedNames[activeXCols[xi]];
+    if (!bestSimple || sr.r2 > bestSimple.r2) bestSimple = sr;
+  }
+
+  // Multiple regression (all active X)
+  var multi = multipleRegression(validRows, k);
+
+  return { valid: true, n: n, data: validRows, simple: bestSimple, multiple: multi, activeXCols: activeXCols };
+}
+
+function simpleRegression(data, xi) {
+  var n = data.length;
+  var sx = 0, sy = 0, sxx = 0, sxy = 0, syy = 0;
+  data.forEach(function(d) {
+    var x = d.xs[xi], y = d.y;
+    sx += x; sy += y; sxx += x*x; sxy += x*y; syy += y*y;
+  });
+  var mx = sx/n, my = sy/n;
+  var ssxx = sxx - n*mx*mx;
+  var ssxy = sxy - n*mx*my;
+  var ssyy = syy - n*my*my;
+  
+  var b1 = ssxx !== 0 ? ssxy / ssxx : 0;
+  var b0 = my - b1 * mx;
+  
+  var sse = 0, sst = ssyy;
+  data.forEach(function(d) {
+    var pred = b0 + b1 * d.xs[xi];
+    sse += (d.y - pred) * (d.y - pred);
+  });
+  
+  var r2 = sst > 0 ? 1 - sse/sst : 0;
+  var rmse = Math.sqrt(sse / n);
+  var cvrmse = my !== 0 ? (rmse / my) * 100 : 0;
+  
+  // P-value approximation (F-test)
+  var msr = (sst - sse) / 1;
+  var mse = sse / (n - 2);
+  var fstat = mse > 0 ? msr / mse : 0;
+  var pvalue = fToP(fstat, 1, n - 2);
+  
+  return { xi: xi, b0: b0, b1: b1, r2: r2, cvrmse: cvrmse, pvalue: pvalue, n: n };
+}
+
+function multipleRegression(data, k) {
+  var n = data.length;
+  // Build X matrix [1, x1, x2, ..., xk]
+  var cols = k + 1;
+  var X = [], Y = [];
+  data.forEach(function(d) {
+    var row = [1];
+    for (var i = 0; i < k; i++) row.push(d.xs[i]);
+    X.push(row);
+    Y.push(d.y);
+  });
+  
+  // Normal equation: (X'X)^-1 X'Y
+  var XtX = matMul(transpose(X), X);
+  var XtY = matVecMul(transpose(X), Y);
+  var inv = invertMatrix(XtX);
+  if (!inv) return { valid: false };
+  
+  var beta = [];
+  for (var i = 0; i < cols; i++) {
+    var s = 0;
+    for (var j = 0; j < cols; j++) s += inv[i][j] * XtY[j];
+    beta.push(s);
+  }
+  
+  // Statistics
+  var yMean = Y.reduce(function(a,b){return a+b;},0) / n;
+  var sst = 0, sse = 0;
+  var predictions = [];
+  data.forEach(function(d, i) {
+    var pred = beta[0];
+    for (var j = 0; j < k; j++) pred += beta[j+1] * d.xs[j];
+    predictions.push(pred);
+    sse += (d.y - pred) * (d.y - pred);
+    sst += (d.y - yMean) * (d.y - yMean);
+  });
+  
+  var r2 = sst > 0 ? 1 - sse/sst : 0;
+  var adjR2 = 1 - ((1-r2)*(n-1)/(n-k-1));
+  var rmse = Math.sqrt(sse / n);
+  var cvrmse = yMean !== 0 ? (rmse / yMean) * 100 : 0;
+  
+  var msr = (sst - sse) / k;
+  var mse = sse / (n - k - 1);
+  var fstat = mse > 0 ? msr / mse : 0;
+  var pvalue = fToP(fstat, k, n - k - 1);
+  
+  // Individual p-values
+  var betaPvalues = [];
+  for (var i = 0; i < cols; i++) {
+    var seBeta = Math.sqrt(Math.abs(mse * inv[i][i]));
+    var tstat = seBeta > 0 ? Math.abs(beta[i]) / seBeta : 0;
+    betaPvalues.push(tToP(tstat, n - k - 1));
+  }
+  
+  return {
+    valid: true, beta: beta, r2: r2, adjR2: adjR2, cvrmse: cvrmse,
+    pvalue: pvalue, fstat: fstat, n: n, k: k, predictions: predictions,
+    betaPvalues: betaPvalues
+  };
+}
+
+// Matrix operations
+function transpose(m) {
+  var r = m.length, c = m[0].length, t = [];
+  for (var j = 0; j < c; j++) { t[j] = []; for (var i = 0; i < r; i++) t[j][i] = m[i][j]; }
+  return t;
+}
+function matMul(a, b) {
+  var r = a.length, c = b[0].length, n = b.length, res = [];
+  for (var i = 0; i < r; i++) { res[i] = []; for (var j = 0; j < c; j++) { var s = 0; for (var k = 0; k < n; k++) s += a[i][k]*b[k][j]; res[i][j] = s; } }
+  return res;
+}
+function matVecMul(m, v) {
+  var res = [];
+  for (var i = 0; i < m.length; i++) { var s = 0; for (var j = 0; j < v.length; j++) s += m[i][j]*v[j]; res.push(s); }
+  return res;
+}
+function invertMatrix(m) {
+  var n = m.length;
+  var aug = [];
+  for (var i = 0; i < n; i++) {
+    aug[i] = [];
+    for (var j = 0; j < n; j++) aug[i][j] = m[i][j];
+    for (var j = 0; j < n; j++) aug[i][n+j] = (i===j) ? 1 : 0;
+  }
+  for (var i = 0; i < n; i++) {
+    var maxRow = i;
+    for (var k = i+1; k < n; k++) if (Math.abs(aug[k][i]) > Math.abs(aug[maxRow][i])) maxRow = k;
+    var tmp = aug[i]; aug[i] = aug[maxRow]; aug[maxRow] = tmp;
+    if (Math.abs(aug[i][i]) < 1e-12) return null;
+    var pivot = aug[i][i];
+    for (var j = 0; j < 2*n; j++) aug[i][j] /= pivot;
+    for (var k = 0; k < n; k++) {
+      if (k === i) continue;
+      var f = aug[k][i];
+      for (var j = 0; j < 2*n; j++) aug[k][j] -= f * aug[i][j];
+    }
+  }
+  var inv = [];
+  for (var i = 0; i < n; i++) { inv[i] = []; for (var j = 0; j < n; j++) inv[i][j] = aug[i][n+j]; }
+  return inv;
+}
+
+// Statistical functions
+function fToP(f, d1, d2) {
+  if (f <= 0 || d2 <= 0) return 1;
+  var x = d2 / (d2 + d1 * f);
+  return betaInc(d2/2, d1/2, x);
+}
+function tToP(t, df) {
+  var x = df / (df + t*t);
+  return betaInc(df/2, 0.5, x);
+}
+function betaInc(a, b, x) {
+  if (x <= 0) return 1; if (x >= 1) return 0;
+  var bt = Math.exp(lnGamma(a+b) - lnGamma(a) - lnGamma(b) + a*Math.log(x) + b*Math.log(1-x));
+  if (x < (a+1)/(a+b+2)) return bt * betaCf(a, b, x) / a;
+  return 1 - bt * betaCf(b, a, 1-x) / b;
+}
+function betaCf(a, b, x) {
+  var m, m2, aa, c = 1, d = 1 - (a+b)*x/(a+1);
+  if (Math.abs(d) < 1e-30) d = 1e-30;
+  d = 1/d; var h = d;
+  for (m = 1; m <= 100; m++) {
+    m2 = 2*m;
+    aa = m*(b-m)*x / ((a+m2-1)*(a+m2));
+    d = 1+aa*d; if (Math.abs(d)<1e-30) d=1e-30; c = 1+aa/c; if (Math.abs(c)<1e-30) c=1e-30;
+    d = 1/d; h *= d*c;
+    aa = -(a+m)*(a+b+m)*x / ((a+m2)*(a+m2+1));
+    d = 1+aa*d; if (Math.abs(d)<1e-30) d=1e-30; c = 1+aa/c; if (Math.abs(c)<1e-30) c=1e-30;
+    d = 1/d; var del = d*c; h *= del;
+    if (Math.abs(del-1) < 3e-7) break;
+  }
+  return h;
+}
+function lnGamma(x) {
+  var c = [76.18009172947146,-86.50532032941677,24.01409824083091,-1.231739572450155,0.001208650973866179,-5.395239384953e-6];
+  var y = x, tmp = x + 5.5; tmp -= (x+0.5)*Math.log(tmp);
+  var ser = 1.000000000190015;
+  for (var j = 0; j < 6; j++) ser += c[j]/(++y);
+  return -tmp + Math.log(2.5066282746310005*ser/x);
+}
+
+// ========== RENDERING ==========
+var chartInstances = {};
+
+function destroyChart(id) {
+  if (chartInstances[id]) { chartInstances[id].destroy(); delete chartInstances[id]; }
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-content').forEach(function(el) { el.classList.remove('active'); });
+  document.querySelectorAll('.tab').forEach(function(el) { el.classList.remove('active'); });
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+  
+  // Deferred rendering
+  if (name === 'permonth' && !R._perMonthRendered) { renderPerMonth(); R._perMonthRendered = true; }
+  if (name === 'comparison' && !R._compRendered) { renderComparison(); R._compRendered = true; }
+  if (name === 'trend' && !R._trendRendered) { renderTrend(); R._trendRendered = true; }
+  if (name === 'product' && !R._prodRendered) { renderProduct(); R._prodRendered = true; }
+}
+
+function reAnalyze() {
+  var sel = document.getElementById('monthRangeSelect').value;
+  var keys;
+  if (sel === 'all') {
+    keys = Object.keys(allMonths).filter(isThaiMonthKey);
+  } else {
+    keys = [sel];
+  }
+  keys.sort(function(a,b){ return monthKeyToNum(a) - monthKeyToNum(b); });
+  R._perMonthRendered = false; R._compRendered = false; R._trendRendered = false; R._prodRendered = false;
+  runAnalysis(keys);
+}
+
+function renderCombined() {
+  var el = document.getElementById('tab-combined');
+  if (!R.combined || !R.combined.valid) {
+    el.innerHTML = '<p>ข้อมูลไม่เพียงพอสำหรับการวิเคราะห์ (ต้องการอย่างน้อย 3 แถว)</p>';
+    return;
+  }
+  var c = R.combined;
+  var html = '';
+
+  // Dashboard stats - use ALL data total (not just regression-valid rows)
+  var totalKwh = R.allData.reduce(function(s,r){ return s + (parseFloat(r['Total kWh']) || 0); }, 0);
+  var totalWeight = R.allData.reduce(function(s,r){ return s + (parseFloat(r['Weight Input']) || 0); }, 0);
+  html += '<div class="stat-grid">';
+  html += '<div class="stat-box"><div class="label">จำนวนข้อมูลทั้งหมด</div><div class="value">' + R.allData.length + '</div></div>';
+  html += '<div class="stat-box"><div class="label">รวม Total kWh</div><div class="value">' + totalKwh.toFixed(2) + '</div></div>';
+  html += '<div class="stat-box"><div class="label">น้ำหนักรวม (kg)</div><div class="value">' + totalWeight.toFixed(1) + '</div></div>';
+  html += '<div class="stat-box"><div class="label">kWh/kg เฉลี่ย</div><div class="value">' + (totalWeight > 0 ? (totalKwh/totalWeight).toFixed(4) : '-') + '</div></div>';
+  html += '<div class="stat-box"><div class="label">R² (Multiple)</div><div class="value">' + (c.multiple.valid ? c.multiple.r2.toFixed(4) : '-') + '</div></div>';
+  html += '<div class="stat-box"><div class="label">CV(RMSE) %</div><div class="value">' + (c.multiple.valid ? c.multiple.cvrmse.toFixed(2) : '-') + '%</div></div>';
+  html += '</div>';
+  html += '<p style="color:#888;font-size:12px">Regression ใช้ข้อมูล ' + c.n + '/' + R.allData.length + ' แถว (เฉพาะแถวที่มีตัวแปร X ครบ: ' + (c.activeXCols||[]).map(function(ci){return fixedNames[ci];}).join(', ') + ')</p>';
+  
+  // Simple regression
+  if (c.simple) {
+    html += '<h3>Simple Linear Regression (Best: ' + c.simple.xName + ')</h3>';
+    html += '<table><tr><th>ตัวแปร X</th><th>R²</th><th>CV(RMSE)%</th><th>P-Value</th><th>เกณฑ์ IPMVP</th></tr>';
+    html += '<tr><td>' + c.simple.xName + '</td><td>' + c.simple.r2.toFixed(4) + '</td><td>' + c.simple.cvrmse.toFixed(2) + '%</td>';
+    html += '<td>' + c.simple.pvalue.toExponential(3) + '</td>';
+    var pass = c.simple.r2 >= 0.75 && c.simple.cvrmse <= 25;
+    html += '<td class="' + (pass?'pass':'fail') + '">' + (pass?'✓ ผ่าน':'✗ ไม่ผ่าน') + '</td></tr></table>';
+    
+    // Scatter chart
+    html += '<div class="chart-container"><canvas id="chartSimple"></canvas></div>';
+  }
+  
+  // Multiple regression
+  if (c.multiple.valid) {
+    html += '<h3>Multiple Linear Regression</h3>';
+    html += '<table><tr><th>ตัวแปร</th><th>สัมประสิทธิ์ (β)</th><th>P-Value</th><th>นัยสำคัญ</th></tr>';
+    html += '<tr><td>Intercept (β₀)</td><td>' + c.multiple.beta[0].toFixed(4) + '</td><td>' + c.multiple.betaPvalues[0].toExponential(3) + '</td><td>-</td></tr>';
+    var axc = c.activeXCols || FIXED_X_COLS;
+    for (var i = 0; i < axc.length; i++) {
+      var sig = c.multiple.betaPvalues[i+1] < 0.05;
+      html += '<tr><td>' + fixedNames[axc[i]] + '</td><td>' + c.multiple.beta[i+1].toFixed(6) + '</td>';
+      html += '<td>' + c.multiple.betaPvalues[i+1].toExponential(3) + '</td>';
+      html += '<td class="' + (sig?'pass':'fail') + '">' + (sig?'✓ มีนัยสำคัญ':'- ไม่มี') + '</td></tr>';
+    }
+    html += '</table>';
+    
+    html += '<div class="stat-grid">';
+    html += '<div class="stat-box"><div class="label">R²</div><div class="value ' + (c.multiple.r2>=0.75?'pass':'fail') + '">' + c.multiple.r2.toFixed(4) + '</div></div>';
+    html += '<div class="stat-box"><div class="label">Adjusted R²</div><div class="value">' + c.multiple.adjR2.toFixed(4) + '</div></div>';
+    html += '<div class="stat-box"><div class="label">CV(RMSE)</div><div class="value ' + (c.multiple.cvrmse<=25?'pass':'fail') + '">' + c.multiple.cvrmse.toFixed(2) + '%</div></div>';
+    html += '<div class="stat-box"><div class="label">P-Value (F)</div><div class="value ' + (c.multiple.pvalue<0.05?'pass':'fail') + '">' + c.multiple.pvalue.toExponential(3) + '</div></div>';
+    html += '</div>';
+    
+    // IPMVP criteria
+    var passR2 = c.multiple.r2 >= 0.75;
+    var passCV = c.multiple.cvrmse <= 25;
+    var passP = c.multiple.pvalue < 0.05;
+    html += '<h3>เกณฑ์ IPMVP</h3><table><tr><th>เกณฑ์</th><th>เงื่อนไข</th><th>ค่าที่ได้</th><th>ผลการประเมิน</th></tr>';
+    html += '<tr><td>R²</td><td>≥ 0.75</td><td>' + c.multiple.r2.toFixed(4) + '</td><td class="'+(passR2?'pass':'fail')+'">'+(passR2?'✓ ผ่าน':'✗ ไม่ผ่าน')+'</td></tr>';
+    html += '<tr><td>CV(RMSE)</td><td>≤ 25%</td><td>' + c.multiple.cvrmse.toFixed(2) + '%</td><td class="'+(passCV?'pass':'fail')+'">'+(passCV?'✓ ผ่าน':'✗ ไม่ผ่าน')+'</td></tr>';
+    html += '<tr><td>P-Value</td><td>< 0.05</td><td>' + c.multiple.pvalue.toExponential(3) + '</td><td class="'+(passP?'pass':'fail')+'">'+(passP?'✓ ผ่าน':'✗ ไม่ผ่าน')+'</td></tr>';
+    html += '</table>';
+    
+    // Actual vs Predicted chart
+    html += '<div class="chart-container"><canvas id="chartMultiple"></canvas></div>';
+  }
+  
+  el.innerHTML = html;
+  
+  // Draw charts
+  setTimeout(function() {
+    if (c.simple) drawSimpleChart(c);
+    if (c.multiple.valid) drawMultipleChart(c);
+  }, 100);
+}
+
+function drawSimpleChart(c) {
+  destroyChart('chartSimple');
+  var ctx = document.getElementById('chartSimple');
+  if (!ctx) return;
+  var xi = c.simple.xi;
+  var points = c.data.map(function(d) { return { x: d.xs[xi], y: d.y }; });
+  var xMin = Math.min.apply(null, points.map(function(p){return p.x;}));
+  var xMax = Math.max.apply(null, points.map(function(p){return p.x;}));
+  
+  chartInstances['chartSimple'] = new Chart(ctx, {
+    type: 'scatter',
+    data: {
+      datasets: [{
+        label: 'ข้อมูลจริง',
+        data: points,
+        backgroundColor: 'rgba(21,101,192,0.6)'
+      }, {
+        label: 'Regression Line',
+        data: [{x:xMin, y:c.simple.b0+c.simple.b1*xMin}, {x:xMax, y:c.simple.b0+c.simple.b1*xMax}],
+        type: 'line',
+        borderColor: '#c62828',
+        borderWidth: 2,
+        pointRadius: 0,
+        fill: false
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Simple Regression: Total kWh vs ' + c.simple.xName } } }
+  });
+}
+
+function drawMultipleChart(c) {
+  destroyChart('chartMultiple');
+  var ctx = document.getElementById('chartMultiple');
+  if (!ctx) return;
+  var points = c.data.map(function(d, i) { return { x: c.multiple.predictions[i], y: d.y }; });
+  var minV = Math.min.apply(null, points.map(function(p){return Math.min(p.x,p.y);}));
+  var maxV = Math.max.apply(null, points.map(function(p){return Math.max(p.x,p.y);}));
+  
+  chartInstances['chartMultiple'] = new Chart(ctx, {
+    type: 'scatter',
+    data: {
+      datasets: [{
+        label: 'Actual vs Predicted',
+        data: points,
+        backgroundColor: 'rgba(46,125,50,0.6)'
+      }, {
+        label: 'Perfect Fit',
+        data: [{x:minV,y:minV},{x:maxV,y:maxV}],
+        type: 'line',
+        borderColor: '#f57c00',
+        borderWidth: 2,
+        borderDash: [5,5],
+        pointRadius: 0,
+        fill: false
+      }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'Multiple Regression: Actual vs Predicted (kWh)' } },
+      scales: { x: { title: { display: true, text: 'Predicted kWh' } }, y: { title: { display: true, text: 'Actual kWh' } } }
+    }
+  });
+}
+
+// ========== PER MONTH ==========
+function renderPerMonth() {
+  var el = document.getElementById('tab-permonth');
+  var html = '';
+  R.months.forEach(function(k) {
+    var pm = R.perMonth[k];
+    html += '<h3>' + k + ' (n=' + (pm.valid ? pm.n : 0) + ')</h3>';
+    if (!pm.valid) { html += '<p>ข้อมูลไม่เพียงพอ</p>'; return; }
+    if (pm.multiple.valid) {
+      html += '<table><tr><th>R²</th><th>Adj R²</th><th>CV(RMSE)%</th><th>P-Value</th><th>IPMVP</th></tr>';
+      var pass = pm.multiple.r2 >= 0.75 && pm.multiple.cvrmse <= 25 && pm.multiple.pvalue < 0.05;
+      html += '<tr><td>' + pm.multiple.r2.toFixed(4) + '</td><td>' + pm.multiple.adjR2.toFixed(4) + '</td>';
+      html += '<td>' + pm.multiple.cvrmse.toFixed(2) + '%</td><td>' + pm.multiple.pvalue.toExponential(3) + '</td>';
+      html += '<td class="'+(pass?'pass':'fail')+'">'+(pass?'✓':'✗')+'</td></tr></table>';
+    }
+  });
+  el.innerHTML = html;
+}
+
+// ========== COMPARISON ==========
+function renderComparison() {
+  var el = document.getElementById('tab-comparison');
+  if (R.months.length < 2) { el.innerHTML = '<p>ต้องมีอย่างน้อย 2 เดือนเพื่อเปรียบเทียบ</p>'; return; }
+  
+  var html = '<table><tr><th>เดือน</th><th>n</th><th>R² (Simple)</th><th>R² (Multiple)</th><th>CV(RMSE)%</th><th>P-Value</th></tr>';
+  R.months.forEach(function(k) {
+    var pm = R.perMonth[k];
+    if (!pm.valid) { html += '<tr><td>'+k+'</td><td colspan="5">ข้อมูลไม่พอ</td></tr>'; return; }
+    html += '<tr><td>'+k+'</td><td>'+pm.n+'</td>';
+    html += '<td>'+(pm.simple?pm.simple.r2.toFixed(4):'-')+'</td>';
+    html += '<td>'+(pm.multiple.valid?pm.multiple.r2.toFixed(4):'-')+'</td>';
+    html += '<td>'+(pm.multiple.valid?pm.multiple.cvrmse.toFixed(2)+'%':'-')+'</td>';
+    html += '<td>'+(pm.multiple.valid?pm.multiple.pvalue.toExponential(3):'-')+'</td></tr>';
+  });
+  html += '</table>';
+  
+  // Bar chart comparison
+  html += '<div class="chart-container"><canvas id="chartComparison"></canvas></div>';
+  el.innerHTML = html;
+  
+  setTimeout(function() {
+    destroyChart('chartComparison');
+    var labels = R.months;
+    var r2Data = labels.map(function(k){ var p=R.perMonth[k]; return p.valid&&p.multiple.valid ? p.multiple.r2 : 0; });
+    chartInstances['chartComparison'] = new Chart(document.getElementById('chartComparison'), {
+      type: 'bar',
+      data: { labels: labels, datasets: [{ label: 'R² (Multiple)', data: r2Data, backgroundColor: 'rgba(21,101,192,0.7)' }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'R² Comparison by Month' } },
+        scales: { y: { min: 0, max: 1 } } }
+    });
+  }, 100);
+}
+
+// ========== TREND ==========
+function renderTrend() {
+  var el = document.getElementById('tab-trend');
+  var html = '<div class="chart-container"><canvas id="chartTrend"></canvas></div>';
+  el.innerHTML = html;
+  
+  setTimeout(function() {
+    destroyChart('chartTrend');
+    var labels = R.months;
+    var kwhData = labels.map(function(k) {
+      return allMonths[k].reduce(function(s,r){ return s + (parseFloat(r['Total kWh'])||0); }, 0);
+    });
+    chartInstances['chartTrend'] = new Chart(document.getElementById('chartTrend'), {
+      type: 'line',
+      data: { labels: labels, datasets: [{ label: 'Total kWh/เดือน', data: kwhData, borderColor: '#1565c0', backgroundColor: 'rgba(21,101,192,0.1)', fill: true, tension: 0.3 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'แนวโน้มการใช้พลังงานรายเดือน' } } }
+    });
+  }, 100);
+}
+
+// ========== PRODUCT ANALYSIS ==========
+function renderProduct() {
+  var el = document.getElementById('tab-product');
+  var keys = Object.keys(allMonths).filter(isThaiMonthKey);
+  keys.sort(function(a,b){ return monthKeyToNum(a) - monthKeyToNum(b); });
+  
+  // Gather product data from ALL months
+  var productData = {}; // product -> { totalKwh, totalWeight, count, months: {monthKey -> {kwh, weight, count}} }
+  var monthTotals = {}; // monthKey -> totalWeight
+  
+  keys.forEach(function(mk) {
+    if (!monthTotals[mk]) monthTotals[mk] = 0;
+    allMonths[mk].forEach(function(r) {
+      var prod = r['Product'];
+      if (!prod || prod === '' || prod === null) return;
+      var kwh = parseFloat(r['Total kWh']) || 0;
+      var weight = parseFloat(r['Weight Input']) || 0;
+      
+      if (!productData[prod]) productData[prod] = { totalKwh: 0, totalWeight: 0, count: 0, months: {} };
+      productData[prod].totalKwh += kwh;
+      productData[prod].totalWeight += weight;
+      productData[prod].count++;
+      
+      if (!productData[prod].months[mk]) productData[prod].months[mk] = { kwh: 0, weight: 0, count: 0 };
+      productData[prod].months[mk].kwh += kwh;
+      productData[prod].months[mk].weight += weight;
+      productData[prod].months[mk].count++;
+      
+      monthTotals[mk] += weight;
+    });
+  });
+  
+  var products = Object.keys(productData).sort();
+  if (products.length === 0) { el.innerHTML = '<p>ไม่พบข้อมูลผลิตภัณฑ์</p>'; return; }
+  
+  var html = '';
+  
+  // === Section 1: Production Proportion ===
+  html += '<h3>📊 สัดส่วนการผลิตตามเบอร์ยาง (น้ำหนัก)</h3>';
+  var totalWeight = products.reduce(function(s,p){ return s + productData[p].totalWeight; }, 0);
+  html += '<table><tr><th>เบอร์ยาง</th><th>น้ำหนักรวม (kg)</th><th>สัดส่วน %</th><th>จำนวนครั้ง</th><th>รวม kWh</th></tr>';
+  products.forEach(function(p) {
+    var d = productData[p];
+    var pct = totalWeight > 0 ? (d.totalWeight / totalWeight * 100) : 0;
+    html += '<tr><td>'+p+'</td><td>'+d.totalWeight.toFixed(1)+'</td><td>'+pct.toFixed(1)+'%</td><td>'+d.count+'</td><td>'+d.totalKwh.toFixed(2)+'</td></tr>';
+  });
+  html += '</table>';
+  html += '<div class="chart-container"><canvas id="chartProdProportion"></canvas></div>';
+  
+  // === Section 2: kWh/kg Comparison ===
+  html += '<h3>⚡ เปรียบเทียบ kWh/kg ตามเบอร์ยาง</h3>';
+  html += '<table><tr><th>เบอร์ยาง</th><th>รวม kWh</th><th>น้ำหนักรวม (kg)</th><th>kWh/kg</th></tr>';
+  var totalKwhAll = 0;
+  products.forEach(function(p) {
+    var d = productData[p];
+    var kwhkg = d.totalWeight > 0 ? (d.totalKwh / d.totalWeight) : 0;
+    totalKwhAll += d.totalKwh;
+    html += '<tr><td>'+p+'</td><td>'+d.totalKwh.toFixed(2)+'</td><td>'+d.totalWeight.toFixed(1)+'</td><td>'+(kwhkg > 0 ? kwhkg.toFixed(4) : '-')+'</td></tr>';
+  });
+  html += '<tr style="font-weight:bold"><td>รวมทั้งหมด</td><td>'+totalKwhAll.toFixed(2)+'</td><td>'+totalWeight.toFixed(1)+'</td><td>'+(totalWeight>0?(totalKwhAll/totalWeight).toFixed(4):'-')+'</td></tr>';
+  html += '</table>';
+  html += '<div class="chart-container"><canvas id="chartKwhKg"></canvas></div>';
+  
+  // === Section 3: Monthly kWh/kg by Product ===
+  html += '<h3>📅 kWh/kg รายเดือนตามเบอร์ยาง</h3>';
+  html += '<table><tr><th>เบอร์ยาง</th>';
+  keys.forEach(function(k) { html += '<th>'+k+'</th>'; });
+  html += '</tr>';
+  products.forEach(function(p) {
+    html += '<tr><td>'+p+'</td>';
+    keys.forEach(function(k) {
+      var md = productData[p].months[k];
+      if (md && md.weight > 0) {
+        html += '<td>'+(md.kwh / md.weight).toFixed(4)+'</td>';
+      } else {
+        html += '<td>-</td>';
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</table>';
+  html += '<div class="chart-container"><canvas id="chartMonthlyKwhKg"></canvas></div>';
+  
+  // === Section 4: Monthly Production Proportion (Stacked Bar) ===
+  html += '<h3>📊 สัดส่วนการผลิตรายเดือน (Stacked Bar)</h3>';
+  html += '<div class="chart-container"><canvas id="chartMonthlyProportion"></canvas></div>';
+  
+  // === Section 5: Idle Time Analysis ===
+  html += '<h3>⏱️ วิเคราะห์ Idle Time (ไม่มีการผลิต)</h3>';
+  var idleData = {};
+  keys.forEach(function(mk) {
+    allMonths[mk].forEach(function(r) {
+      var prod = r['Product'];
+      if (!prod) return;
+      var timeUse = parseFloat(r['Time use']) || 0;
+      var timeMin = parseFloat(r['Time (min)']) || 0;
+      // Idle = time use (fraction of day) * 24 * 60 - actual production time
+      var totalMin = timeUse * 24 * 60;
+      var idle = totalMin - timeMin;
+      if (!idleData[prod]) idleData[prod] = { totalIdle: 0, totalProd: 0, count: 0 };
+      idleData[prod].totalIdle += Math.max(0, idle);
+      idleData[prod].totalProd += timeMin;
+      idleData[prod].count++;
+    });
+  });
+  html += '<table><tr><th>เบอร์ยาง</th><th>Idle Time รวม (min)</th><th>Production Time (min)</th><th>Idle %</th><th>จำนวนครั้ง</th></tr>';
+  products.forEach(function(p) {
+    if (!idleData[p]) return;
+    var d = idleData[p];
+    var total = d.totalIdle + d.totalProd;
+    var pct = total > 0 ? (d.totalIdle / total * 100) : 0;
+    html += '<tr><td>'+p+'</td><td>'+d.totalIdle.toFixed(1)+'</td><td>'+d.totalProd.toFixed(1)+'</td><td>'+pct.toFixed(1)+'%</td><td>'+d.count+'</td></tr>';
+  });
+  html += '</table>';
+  
+  // === Section 6: Anomaly Detection (IQR) ===
+  html += '<h3>🔍 ตรวจจับความผิดปกติ (IQR Method)</h3>';
+  html += '<p>ค่า kWh/kg ที่อยู่นอก Q1-1.5*IQR ถึง Q3+1.5*IQR ถือว่าผิดปกติ</p>';
+  
+  var anomalies = [];
+  products.forEach(function(p) {
+    var vals = [];
+    keys.forEach(function(mk) {
+      if (!allMonths[mk]) return;
+      allMonths[mk].forEach(function(r) {
+        if (r['Product'] !== p) return;
+        var kwh = parseFloat(r['Total kWh']) || 0;
+        var wt = parseFloat(r['Weight Input']) || 0;
+        if (wt > 0) vals.push({ kwhkg: kwh/wt, kwh: kwh, weight: wt, row: r });
+      });
+    });
+    if (vals.length < 4) return;
+    vals.sort(function(a,b){return a.kwhkg - b.kwhkg;});
+    var q1 = vals[Math.floor(vals.length*0.25)].kwhkg;
+    var q3 = vals[Math.floor(vals.length*0.75)].kwhkg;
+    var iqr = q3 - q1;
+    var lower = q1 - 1.5*iqr;
+    var upper = q3 + 1.5*iqr;
+    
+    vals.forEach(function(v) {
+      if (v.kwhkg < lower || v.kwhkg > upper) {
+        anomalies.push({ product: p, kwhkg: v.kwhkg, kwh: v.kwh, weight: v.weight, type: v.kwhkg > upper ? 'สูง' : 'ต่ำ', q1: q1, q3: q3, lower: lower, upper: upper });
+      }
+    });
+  });
+  
+  if (anomalies.length > 0) {
+    html += '<table><tr><th>เบอร์ยาง</th><th>kWh/kg</th><th>kWh</th><th>Weight (kg)</th><th>ประเภท</th><th>ช่วงปกติ</th></tr>';
+    anomalies.forEach(function(a) {
+      var cls = a.type === 'สูง' ? 'anomaly-high' : 'anomaly-low';
+      html += '<tr class="'+cls+'"><td>'+a.product+'</td><td>'+a.kwhkg.toFixed(4)+'</td><td>'+a.kwh.toFixed(2)+'</td><td>'+a.weight.toFixed(1)+'</td>';
+      html += '<td>'+a.type+'</td><td>'+a.lower.toFixed(4)+' - '+a.upper.toFixed(4)+'</td></tr>';
+    });
+    html += '</table>';
+    html += '<p><strong>สรุป:</strong> พบ ' + anomalies.length + ' รายการผิดปกติ จาก ' + products.length + ' เบอร์ยาง';
+    var highCount = anomalies.filter(function(a){return a.type==='สูง';}).length;
+    html += ' (สูงกว่าปกติ ' + highCount + ' รายการ, ต่ำกว่าปกติ ' + (anomalies.length-highCount) + ' รายการ)</p>';
+    html += '<p>💡 ค่า kWh/kg ที่สูงผิดปกติ อาจบ่งชี้พฤติกรรมการใช้พลังงานที่ผิดปกติ เช่น เครื่องจักรทำงานไม่เต็มประสิทธิภาพ หรือมี Idle Time มากเกินไป</p>';
+  } else {
+    html += '<p class="pass">✓ ไม่พบความผิดปกติในข้อมูล kWh/kg</p>';
+  }
+  
+  el.innerHTML = html;
+  
+  // Draw product charts
+  setTimeout(function() { drawProductCharts(products, productData, keys); }, 150);
+}
+
+function drawProductCharts(products, productData, keys) {
+  var colors = ['#1565c0','#2e7d32','#f57c00','#c62828','#6a1b9a','#00838f','#4e342e','#37474f','#ad1457','#1b5e20','#e65100','#0d47a1','#4a148c','#bf360c'];
+  
+  // Proportion doughnut
+  destroyChart('chartProdProportion');
+  var ctx1 = document.getElementById('chartProdProportion');
+  if (ctx1) {
+    chartInstances['chartProdProportion'] = new Chart(ctx1, {
+      type: 'doughnut',
+      data: {
+        labels: products,
+        datasets: [{ data: products.map(function(p){return productData[p].totalWeight;}), backgroundColor: colors.slice(0, products.length) }]
+      },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'สัดส่วนการผลิต (น้ำหนัก kg)' } } }
+    });
+  }
+  
+  // kWh/kg bar
+  destroyChart('chartKwhKg');
+  var ctx2 = document.getElementById('chartKwhKg');
+  if (ctx2) {
+    var kwhkgValues = products.map(function(p) {
+      var d = productData[p];
+      return d.totalWeight > 0 ? d.totalKwh / d.totalWeight : 0;
+    });
+    chartInstances['chartKwhKg'] = new Chart(ctx2, {
+      type: 'bar',
+      data: { labels: products, datasets: [{ label: 'kWh/kg', data: kwhkgValues, backgroundColor: colors.slice(0, products.length) }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'เปรียบเทียบ kWh/kg ตามเบอร์ยาง' } } }
+    });
+  }
+  
+  // Monthly kWh/kg line
+  destroyChart('chartMonthlyKwhKg');
+  var ctx3 = document.getElementById('chartMonthlyKwhKg');
+  if (ctx3) {
+    var datasets = products.map(function(p, idx) {
+      var data = keys.map(function(k) {
+        var md = productData[p].months[k];
+        return (md && md.weight > 0) ? md.kwh / md.weight : null;
+      });
+      return { label: p, data: data, borderColor: colors[idx % colors.length], fill: false, tension: 0.3, spanGaps: true };
+    });
+    chartInstances['chartMonthlyKwhKg'] = new Chart(ctx3, {
+      type: 'line',
+      data: { labels: keys, datasets: datasets },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'kWh/kg รายเดือนตามเบอร์ยาง' } } }
+    });
+  }
+  
+  // Monthly proportion stacked bar
+  destroyChart('chartMonthlyProportion');
+  var ctx4 = document.getElementById('chartMonthlyProportion');
+  if (ctx4) {
+    var datasets2 = products.map(function(p, idx) {
+      var data = keys.map(function(k) {
+        var md = productData[p].months[k];
+        return md ? md.weight : 0;
+      });
+      return { label: p, data: data, backgroundColor: colors[idx % colors.length] };
+    });
+    chartInstances['chartMonthlyProportion'] = new Chart(ctx4, {
+      type: 'bar',
+      data: { labels: keys, datasets: datasets2 },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { title: { display: true, text: 'สัดส่วนการผลิตรายเดือน (kg)' } }, scales: { x: { stacked: true }, y: { stacked: true } } }
+    });
+  }
+}
+
+// ========== EXPORT EXCEL ==========
+function exportExcel() {
+  if (!R || !R.combined) { alert('ยังไม่มีผลการวิเคราะห์'); return; }
+  
+  var wb = XLSX.utils.book_new();
+  
+  // Summary sheet
+  var summaryData = [
+    ['Energy Baseline Analysis - ISO 50001'],
+    ['Generated', new Date().toLocaleString('th-TH')],
+    [],
+    ['Combined Analysis'],
+    ['n', R.combined.n],
+    ['R² (Multiple)', R.combined.multiple.valid ? R.combined.multiple.r2 : '-'],
+    ['CV(RMSE) %', R.combined.multiple.valid ? R.combined.multiple.cvrmse : '-'],
+    ['P-Value', R.combined.multiple.valid ? R.combined.multiple.pvalue : '-'],
+    [],
+    ['IPMVP Criteria'],
+    ['R² ≥ 0.75', R.combined.multiple.valid && R.combined.multiple.r2 >= 0.75 ? 'PASS' : 'FAIL'],
+    ['CV(RMSE) ≤ 25%', R.combined.multiple.valid && R.combined.multiple.cvrmse <= 25 ? 'PASS' : 'FAIL'],
+    ['P-Value < 0.05', R.combined.multiple.valid && R.combined.multiple.pvalue < 0.05 ? 'PASS' : 'FAIL']
+  ];
+  var wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+  
+  // Data sheet
+  var dataRows = [['Month', 'Product', 'Total kWh', 'Batch', 'Time(min)', 'Thickness', 'Weight Input', 'Width', 'kWh/kg']];
+  var keys = Object.keys(allMonths).filter(isThaiMonthKey);
+  keys.forEach(function(k) {
+    allMonths[k].forEach(function(r) {
+      var wt = parseFloat(r['Weight Input']) || 0;
+      var kwh = parseFloat(r['Total kWh']) || 0;
+      dataRows.push([k, r['Product']||'', kwh, r['Batch']||'', r['Time (min)']||'', r['Thickness']||'', wt, r['Width']||'', wt > 0 ? kwh/wt : '']);
+    });
+  });
+  var wsData = XLSX.utils.aoa_to_sheet(dataRows);
+  XLSX.utils.book_append_sheet(wb, wsData, 'Data');
+  
+  XLSX.writeFile(wb, 'Energy_Baseline_Analysis.xlsx');
+}
+
+// Init
+document.addEventListener('DOMContentLoaded', function() {});
+</script>
+</body>
+</html>
