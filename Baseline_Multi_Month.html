@@ -1,0 +1,1702 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Energy Baseline — Multi-Month Analyzer</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" defer></script>
+<script>
+window.addEventListener('DOMContentLoaded', function() {
+  var missing = [];
+  if (typeof XLSX === 'undefined') missing.push('SheetJS (XLSX)');
+  if (typeof Chart === 'undefined') missing.push('Chart.js');
+  if (missing.length > 0) {
+    var area = document.getElementById('statusArea');
+    if (area) area.innerHTML = '<div class="status-msg status-err">❌ ไม่สามารถโหลด Library: ' + missing.join(', ') + '<br><b>วิธีแก้:</b> เปิดไฟล์นี้ผ่าน Browser โดยตรง (ลาก HTML ไปวางใน Chrome/Edge) และต้องมีอินเทอร์เน็ต</div>';
+  }
+});
+</script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--p:#2563eb;--pd:#1d4ed8;--g:#16a34a;--r:#dc2626;--w:#f59e0b;--bg:#f1f5f9;--c:#fff;--tx:#1e293b;--tx2:#64748b;--bd:#e2e8f0;--rad:12px}
+body{font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--tx);line-height:1.5}
+.top{background:linear-gradient(135deg,#0f172a 0%,#1e40af 60%,#7c3aed 100%);color:#fff;padding:20px 28px;display:flex;align-items:center;gap:16px}
+.top h1{font-size:1.4rem}.top p{opacity:.8;font-size:.82rem}
+.wrap{max-width:1440px;margin:0 auto;padding:20px}
+.card{background:var(--c);border-radius:var(--rad);box-shadow:0 1px 4px rgba(0,0,0,.06);padding:22px;margin-bottom:16px;border:1px solid var(--bd)}
+.card h2{font-size:1rem;color:var(--p);margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.drop{border:2px dashed var(--bd);border-radius:var(--rad);padding:32px;text-align:center;cursor:pointer;transition:.3s;background:#f8fafc}
+.drop:hover,.drop.over{border-color:var(--p);background:#eff6ff}
+.drop .ic{font-size:2.4rem}.drop p{color:var(--tx2)}.drop .sm{font-size:.75rem;color:#94a3b8;margin-top:4px}
+.file-list{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px}
+.fbadge{display:inline-flex;align-items:center;gap:6px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:20px;padding:5px 14px;font-size:.8rem;color:var(--p);font-weight:600}
+.fbadge .x{cursor:pointer;color:var(--r);font-weight:700}
+.month-list{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.mtag{padding:6px 14px;border-radius:20px;font-size:.82rem;font-weight:600;border:1px solid var(--bd);cursor:pointer;transition:.2s;user-select:none;display:flex;align-items:center;gap:5px}
+.mtag:hover{border-color:var(--p)}.mtag.on{background:#eff6ff;border-color:var(--p);color:var(--p)}
+.mtag .cnt{background:var(--p);color:#fff;font-size:.68rem;padding:1px 7px;border-radius:10px}
+select,input[type=text]{padding:8px 12px;border:1px solid var(--bd);border-radius:8px;font-size:.88rem;background:#fff}
+select:focus,input:focus{outline:none;border-color:var(--p);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+label{font-weight:600;font-size:.82rem;color:var(--tx2);display:block;margin-bottom:4px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.chip{display:flex;align-items:center;gap:5px;padding:5px 14px;border:1px solid var(--bd);border-radius:20px;cursor:pointer;font-size:.83rem;font-weight:500;transition:.2s;user-select:none}
+.chip:hover{border-color:var(--p)}.chip.on{background:#eff6ff;border-color:var(--p);color:var(--p)}
+.chip input{display:none}
+.btn{padding:10px 24px;border:none;border-radius:8px;font-size:.9rem;font-weight:600;cursor:pointer;transition:.2s;display:inline-flex;align-items:center;gap:7px}
+.btn:hover{transform:translateY(-1px)}.btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+.btn-p{background:var(--p);color:#fff}.btn-p:hover{background:var(--pd)}
+.btn-g{background:var(--g);color:#fff}.btn-g:hover{background:#15803d}
+.btn-o{background:#fff;color:var(--p);border:1px solid var(--p)}.btn-o:hover{background:#eff6ff}
+.btn-sm{padding:6px 14px;font-size:.8rem}
+.hide{display:none}
+.eq{background:linear-gradient(135deg,#1e293b,#334155);color:#fff;border-radius:10px;padding:14px 18px;font-family:'Courier New',monospace;font-size:.92rem;text-align:center;margin:10px 0;word-break:break-all}
+.eq.green{background:linear-gradient(135deg,#064e3b,#065f46)}
+.st{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin:10px 0}
+.s{background:#f8fafc;border-radius:10px;padding:12px;text-align:center;border:1px solid var(--bd)}
+.s .v{font-size:1.2rem;font-weight:700;color:var(--p)}.s .l{font-size:.68rem;color:var(--tx2)}
+.s.ok .v{color:var(--g)}.s.no .v{color:var(--r)}
+.tbl-w{overflow-x:auto;border-radius:8px;border:1px solid var(--bd);max-height:400px;overflow-y:auto}
+table{width:100%;border-collapse:collapse;font-size:.8rem}
+th{background:#f1f5f9;position:sticky;top:0;z-index:2;padding:8px 10px;text-align:left;font-weight:600;border-bottom:2px solid var(--bd)}
+td{padding:6px 10px;border-bottom:1px solid var(--bd);white-space:nowrap}
+tr:hover td{background:#f8fafc}
+tr.header-row{background:#fff3cd !important}
+tr.header-row td{background:#fff3cd;font-weight:700;color:#92400e;cursor:pointer}
+tr.header-row:hover td{background:#fef3c7 !important}
+tr.header-row2{background:#e0f2fe !important}
+tr.header-row2 td{background:#e0f2fe;font-weight:600;color:#0369a1;cursor:pointer}
+.badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:.7rem;font-weight:600}
+.badge-g{background:#dcfce7;color:#166534}.badge-r{background:#fecaca;color:#991b1b}
+.ch{position:relative;height:300px}
+.tabs{display:flex;gap:2px;border-bottom:2px solid var(--bd);margin-bottom:14px;flex-wrap:wrap}
+.tab{padding:8px 16px;cursor:pointer;font-weight:600;font-size:.84rem;color:var(--tx2);border-bottom:2px solid transparent;margin-bottom:-2px;transition:.2s;white-space:nowrap}
+.tab:hover{color:var(--p)}.tab.on{color:var(--p);border-bottom-color:var(--p)}
+.mcard{background:var(--c);border-radius:var(--rad);border:1px solid var(--bd);margin-bottom:14px;overflow:hidden}
+.mcard .hd{padding:12px 16px;background:linear-gradient(135deg,#eff6ff,#f8fafc);border-bottom:1px solid var(--bd);display:flex;justify-content:space-between;align-items:center}
+.mcard .hd h3{font-size:.92rem;color:var(--p)}.mcard .bd{padding:16px}
+.mini{display:flex;flex-wrap:wrap;gap:14px;margin:8px 0}.mini span{font-size:.78rem;color:var(--tx2)}.mini b{color:var(--tx)}
+.foot{text-align:center;padding:18px;color:var(--tx2);font-size:.75rem}
+.sample{color:var(--p);cursor:pointer;text-decoration:underline;font-size:.82rem}
+.best-row td{background:#fef9c3 !important;font-weight:600}
+.sheet-tab{display:inline-block;padding:6px 16px;border:1px solid var(--bd);border-bottom:none;border-radius:8px 8px 0 0;cursor:pointer;font-size:.82rem;font-weight:600;margin-right:2px;background:#f8fafc}
+.sheet-tab.active{background:var(--c);color:var(--p);border-color:var(--p);border-bottom:1px solid var(--c);margin-bottom:-1px;position:relative;z-index:1}
+.status-msg{margin-top:8px;padding:10px 14px;border-radius:8px;font-size:.85rem;text-align:center}
+.status-ok{background:#dcfce7;color:#166534}.status-err{background:#fecaca;color:#991b1b}.status-load{background:#eff6ff;color:var(--p)}
+.raw-info{background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:12px;font-size:.84rem;color:#92400e;margin-bottom:12px}
+.hdr-opts{display:flex;gap:12px;align-items:center;margin:10px 0;flex-wrap:wrap;padding:10px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px}
+.hdr-opts label{margin:0;display:flex;align-items:center;gap:5px;cursor:pointer;font-size:.84rem;color:var(--tx)}
+.hdr-opts input[type=checkbox]{width:16px;height:16px;accent-color:var(--p)}
+</style>
+</head>
+<body>
+
+<div class="top">
+  <div style="font-size:2rem">⚡</div>
+  <div style="flex:1"><h1>Energy Baseline — Multi-Month Analyzer</h1><p>รองรับหลายไฟล์ / หลาย Sheet — วิเคราะห์รวม แยกเดือน เปรียบเทียบข้ามเดือน</p></div>
+</div>
+
+<div class="wrap">
+
+<!-- STEP 1: UPLOAD -->
+<div class="card" id="s1">
+  <h2>📁 ขั้นตอนที่ 1 — นำเข้าข้อมูล</h2>
+  <div class="drop" id="dz">
+    <div class="ic">📊</div>
+    <p><b>ลากวางไฟล์</b> หรือ <b>คลิกเพื่อเลือก</b> (รองรับหลายไฟล์)</p>
+    <div class="sm">รองรับ .xlsx .xls .csv — แนบหลายไฟล์พร้อมกันได้</div>
+  </div>
+  <input type="file" id="fi" accept=".xlsx,.xls,.csv" multiple style="position:absolute;left:-9999px">
+  <div style="margin-top:12px;text-align:center">
+    <button class="btn btn-p" onclick="document.getElementById('fi').click()">📂 เลือกไฟล์จากเครื่อง</button>
+    <button class="btn btn-o" style="margin-left:8px" onclick="loadSample()">📌 ข้อมูลตัวอย่าง</button>
+  </div>
+  <div id="statusArea"></div>
+  <div class="file-list" id="flist"></div>
+</div>
+
+<!-- RAW PREVIEW (hidden) -->
+<div style="display:none" id="rawCard">
+  <div class="hdr-opts">
+    <label><input type="checkbox" id="mergeHeaders" onchange="onMergeToggle()"> รวม Header 2 แถว</label>
+    <span id="mergeInfo"></span>
+  </div>
+  <div id="sheetTabs"></div>
+  <div id="rawTbl"></div>
+  <input type="text" id="dataLabel" style="display:none" value="">
+  <div id="previewHeaders"></div>
+</div>
+<div style="display:none" id="s1b"><div id="mlist"></div><span id="totalInfo"></span></div>
+
+<!-- STEP 2 -->
+<div class="card hide" id="s2">
+  <h2>⚙️ ขั้นตอนที่ 2 — ตั้งค่าการวิเคราะห์</h2>
+  <div class="grid2">
+    <div><label>ตัวแปรตาม (Y) — พลังงาน</label><select id="yv" style="width:100%"></select></div>
+    <div><label>ระดับความเชื่อมั่น</label><select id="ci" style="width:100%"><option value="95">95%</option><option value="99">99%</option><option value="90">90%</option></select></div>
+  </div>
+  <div style="margin-top:14px">
+    <label>ตัวแปรอิสระ (X) — เลือกได้หลายตัว</label>
+    <div class="chips" id="xchips"></div>
+  </div>
+  <div style="margin-top:18px;text-align:center">
+    <button class="btn btn-p" onclick="runAll()">🔬 วิเคราะห์ Baseline ทั้งหมด</button>
+  </div>
+</div>
+
+<!-- STEP 3: RESULTS -->
+<div class="card hide" id="s3">
+  <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:14px">
+    <h2 style="margin-bottom:0">📊 ขั้นตอนที่ 3 — ผลการวิเคราะห์</h2>
+    <div id="topMonthRange" class="hide" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 14px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px">
+      <span style="font-size:.82rem;font-weight:600;color:var(--p)">📅 ช่วงเดือน:</span>
+      <select id="monthFrom" style="padding:5px 10px;border-radius:6px;border:1px solid var(--bd);font-size:.82rem" onchange="onMonthRangeChange()"></select>
+      <span style="font-size:.82rem;color:var(--tx2)">ถึง</span>
+      <select id="monthTo" style="padding:5px 10px;border-radius:6px;border:1px solid var(--bd);font-size:.82rem" onchange="onMonthRangeChange()"></select>
+      <span id="selInfo" style="font-size:.78rem;color:var(--tx2)"></span>
+      <button class="btn btn-p btn-sm" onclick="runAll()">🔄 วิเคราะห์ใหม่</button>
+    </div>
+  </div>
+  <div class="tabs" id="mainTabs">
+    <div class="tab on" data-t="combined" onclick="mTab(this)">📦 รวมทุกเดือน</div>
+    <div class="tab" data-t="monthly" onclick="mTab(this)">📅 แยกรายเดือน</div>
+    <div class="tab" data-t="compare" onclick="mTab(this)">📊 เปรียบเทียบ</div>
+    <div class="tab" data-t="trend" onclick="mTab(this)">📈 Trend</div>
+    <div class="tab" data-t="product" onclick="mTab(this)">🏭 วิเคราะห์เบอร์ยาง</div>
+  </div>
+  <div id="t-combined"></div>
+  <div id="t-monthly" class="hide"></div>
+  <div id="t-compare" class="hide"></div>
+  <div id="t-trend" class="hide"></div>
+  <div id="t-product" class="hide"></div>
+  <div style="margin-top:20px;text-align:center;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+    <button class="btn btn-g" onclick="exportAll()">📥 Export Excel</button>
+    <button class="btn btn-o" onclick="window.print()">🖨️ พิมพ์</button>
+  </div>
+</div>
+
+</div>
+<div class="foot">Energy Baseline Multi-Month Analyzer — ISO 50001 / EnMS / IPMVP</div>
+
+<script>
+// =================== GLOBAL ERROR HANDLER ===================
+window.onerror = function(msg, url, line, col, err) {
+  try { setStatus('❌ JavaScript Error: ' + msg + ' (line ' + line + ')', 'err'); } catch(e) {}
+  console.error('Global error:', msg, line, col, err);
+};
+
+// =================== STATE ===================
+let allMonths = {};
+let numericHeaders = [];
+let charts = {};
+let pendingWorkbook = null;
+let pendingFilename = '';
+let pendingSheetData = {};
+let currentSheet = '';
+let selectedHeaderRow = -1;
+let hiddenCols = {0: true, 2: true}; // Hide col A(0) and C(2) by default
+
+// =================== FILE HANDLERS ===================
+document.addEventListener('DOMContentLoaded', function() {
+  const dz = document.getElementById('dz');
+  const fi = document.getElementById('fi');
+  dz.addEventListener('click', function(e) { if (e.target.tagName !== 'BUTTON') fi.click(); });
+  dz.addEventListener('dragover', function(e) { e.preventDefault(); dz.classList.add('over'); });
+  dz.addEventListener('dragleave', function() { dz.classList.remove('over'); });
+  dz.addEventListener('drop', function(e) { e.preventDefault(); dz.classList.remove('over'); if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files); });
+  fi.addEventListener('change', function() { if (fi.files.length > 0) handleFiles(fi.files); fi.value = ''; });
+});
+
+function setStatus(msg, type) {
+  const area = document.getElementById('statusArea');
+  const cls = type === 'ok' ? 'status-ok' : type === 'err' ? 'status-err' : 'status-load';
+  area.innerHTML = '<div class="status-msg ' + cls + '">' + msg + '</div>';
+}
+function clearStatus() { document.getElementById('statusArea').innerHTML = ''; }
+
+// =================== FILE READING (raw:true for reliable numbers) ===================
+var fileQueue = [];
+var processingFiles = false;
+
+function handleFiles(files) {
+  const arr = Array.from(files);
+  if (arr.length === 0) return;
+  // Add all files to queue
+  arr.forEach(function(f) { fileQueue.push(f); });
+  if (!processingFiles) processNextFile();
+}
+
+function processNextFile() {
+  if (fileQueue.length === 0) {
+    processingFiles = false;
+    // Show final status
+    var totalMonths = Object.keys(allMonths).length;
+    var totalRows = 0;
+    for (var k in allMonths) totalRows += allMonths[k].rows.length;
+    setStatus('✅ นำเข้าเสร็จสิ้น: ' + totalMonths + ' เดือน, ' + totalRows + ' แถวรวม', 'ok');
+    refreshUI();
+    return;
+  }
+  processingFiles = true;
+  var f = fileQueue.shift();
+  processFileRaw(f, function() {
+    // After this file is done, process next
+    setTimeout(function() { processNextFile(); }, 100);
+  });
+}
+
+function processFileRaw(f, onDone) {
+  const ext = f.name.split('.').pop().toLowerCase();
+  pendingFilename = f.name;
+
+  if (ext !== 'csv' && typeof XLSX === 'undefined') {
+    setStatus('❌ Library SheetJS ยังไม่โหลด — เปิดไฟล์ HTML ผ่าน Chrome/Edge โดยตรง', 'err');
+    if (onDone) onDone();
+    return;
+  }
+
+  var remaining = fileQueue.length;
+  var queueMsg = remaining > 0 ? ' (เหลืออีก ' + remaining + ' ไฟล์)' : '';
+  setStatus('📖 กำลังอ่าน ' + f.name + '...' + queueMsg, 'load');
+  const reader = new FileReader();
+  reader.onerror = function() { setStatus('❌ ไม่สามารถอ่านไฟล์ ' + f.name, 'err'); if (onDone) onDone(); };
+
+  if (ext === 'csv') {
+    reader.onload = function(e) {
+      try {
+        const lines = e.target.result.trim().split('\n').map(function(l) {
+          return l.split(',').map(function(c) { return c.trim().replace(/^"|"$/g, ''); });
+        });
+        pendingWorkbook = null;
+        pendingSheetData = { 'CSV': { aoa: lines, headerRow: 0 } };
+        autoImportAll();
+        showRawPreview();
+      } catch (err) { setStatus('❌ ' + err.message, 'err'); }
+      if (onDone) onDone();
+    };
+    reader.readAsText(f);
+  } else {
+    reader.onload = function(e) {
+      try {
+        var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: false, cellNF: false, cellText: false, raw: true });
+        pendingWorkbook = wb;
+        pendingSheetData = {};
+        var skipSheets = ['DB_All_Paramenter', 'DB_All_Parameter', 'DB_Monthly Data', 'DB_Monthly', 'F-RCMDS-C-016'];
+        wb.SheetNames.forEach(function(sn) {
+          var shouldSkip = skipSheets.some(function(skip) { return sn.indexOf(skip) >= 0; });
+          if (shouldSkip) return;
+          var ws = wb.Sheets[sn];
+          var aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+          var bestRow = 0, bestScore = 0;
+          aoa.slice(0, 15).forEach(function(row, i) {
+            if (!Array.isArray(row)) return;
+            var strCells = row.filter(function(c) { return typeof c === 'string' && c.trim().length > 0; }).length;
+            var numCells = row.filter(function(c) { return c !== '' && c !== null && c !== undefined; }).length;
+            var score = strCells * 2 + numCells;
+            if (score > bestScore) { bestScore = score; bestRow = i; }
+          });
+          pendingSheetData[sn] = { aoa: aoa, headerRow: bestRow };
+        });
+        autoImportAll();
+        showRawPreview();
+      } catch (err) { setStatus('❌ Error: ' + err.message, 'err'); console.error(err); }
+      if (onDone) onDone();
+    };
+    reader.readAsArrayBuffer(f);
+  }
+}
+
+// =================== EXCEL DATE/TIME HELPERS ===================
+function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+
+// Excel serial number → Date string "DD/MM/YYYY (พ.ศ.)"
+function excelDateToStr(serial) {
+  if (typeof serial !== 'number' || serial < 1) return '';
+  var d = new Date((serial - 25569) * 86400000);
+  if (isNaN(d.getTime())) return '';
+  var ce = d.getUTCFullYear();
+  var be = ce + 543; // Buddhist Era
+  return pad2(d.getUTCDate()) + '/' + pad2(d.getUTCMonth() + 1) + '/' + be;
+}
+
+// Excel time fraction (0-1) → minutes
+function excelTimeToMin(serial) {
+  if (typeof serial !== 'number') return NaN;
+  // Time fractions: 0.5 = 12 hours = 720 min
+  var totalMin = serial * 24 * 60;
+  return Math.round(totalMin * 100) / 100;
+}
+
+// Detect if a column of values looks like Excel dates (serial 15000-70000 covers ~1941-2091)
+function looksLikeDateCol(values) {
+  var count = 0;
+  for (var i = 0; i < Math.min(values.length, 20); i++) {
+    var v = values[i];
+    if (typeof v === 'number' && v > 15000 && v < 70000 && Math.floor(v) === v) count++;
+  }
+  return count > values.length * 0.3;
+}
+
+// Detect if a column of values looks like Excel times (0 < v < 1.5)
+function looksLikeTimeCol(values) {
+  var count = 0;
+  for (var i = 0; i < Math.min(values.length, 20); i++) {
+    var v = values[i];
+    if (typeof v === 'number' && v > 0 && v < 1.5) count++;
+  }
+  return count > values.length * 0.3;
+}
+
+// =================== RAW PREVIEW ===================
+function showRawPreview() {
+  try {
+    var card = document.getElementById('rawCard');
+    card.classList.remove('hide');
+    var sheets = Object.keys(pendingSheetData);
+    if (sheets.length === 0) { setStatus('❌ ไม่พบ Sheet ในไฟล์', 'err'); return; }
+    var tabsDiv = document.getElementById('sheetTabs');
+    tabsDiv.innerHTML = '';
+    sheets.forEach(function(sn, i) {
+      var tab = document.createElement('span');
+      tab.className = 'sheet-tab' + (i === 0 ? ' active' : '');
+      tab.textContent = sn + ' (' + pendingSheetData[sn].aoa.length + ')';
+      tab.setAttribute('data-sheet-name', sn);
+      tab.onclick = function() { switchSheet(sn); };
+      tabsDiv.appendChild(tab);
+    });
+    currentSheet = sheets[0];
+    document.getElementById('dataLabel').value = sheets[0];
+    renderRawTable(currentSheet);
+  } catch (err) {
+    setStatus('❌ Error แสดง Preview: ' + err.message, 'err');
+    console.error('showRawPreview error:', err);
+  }
+}
+
+function autoImportAll() {
+  try {
+    var total = 0;
+    for (var sn in pendingSheetData) {
+      var data = pendingSheetData[sn];
+      var rows = aoaToObjects(data.aoa, data.headerRow);
+      if (rows.length > 0) { addMonthsSplit(rows, pendingFilename); total += rows.length; }
+    }
+    if (total === 0) return;
+    var monthCount = Object.keys(allMonths).length;
+    setStatus('✅ นำเข้าสำเร็จ: ' + total + ' แถว แบ่งเป็น ' + monthCount + ' เดือน', 'ok');
+    refreshUI();
+  } catch (err) { setStatus('❌ Error: ' + err.message, 'err'); console.error(err); }
+}
+
+function switchSheet(sn) {
+  try {
+    currentSheet = sn;
+    hiddenCols = {0: true, 2: true}; // reset with A,C hidden
+    document.getElementById('dataLabel').value = sn;
+    document.querySelectorAll('.sheet-tab').forEach(function(t) { t.classList.remove('active'); });
+    var matched = Array.from(document.querySelectorAll('.sheet-tab')).find(function(t) { return t.getAttribute('data-sheet-name') === sn; });
+    if (matched) matched.classList.add('active');
+    renderRawTable(sn);
+  } catch (err) { setStatus('❌ Error เปลี่ยน Sheet: ' + err.message, 'err'); }
+}
+
+function renderRawTable(sn) {
+  try {
+    var data = pendingSheetData[sn];
+    if (!data || !data.aoa) {
+      document.getElementById('rawTbl').innerHTML = '<div style="text-align:center;padding:20px;color:var(--tx2)">ไม่พบข้อมูล</div>';
+      return;
+    }
+    var aoa = data.aoa;
+    selectedHeaderRow = data.headerRow;
+    var mergeOn = document.getElementById('mergeHeaders').checked;
+
+    // Safe maxCols — cap at column W (index 23), skip X onwards
+    var lengths = aoa.slice(0, 50).map(function(r) { return Array.isArray(r) ? r.length : 0; });
+    var maxCols = Math.min(16, lengths.length > 0 ? Math.max(0, Math.max.apply(null, lengths)) : 0);
+    if (maxCols === 0) {
+      document.getElementById('rawTbl').innerHTML = '<div style="text-align:center;padding:20px;color:var(--tx2)">ไม่พบข้อมูล (0 คอลัมน์)</div>';
+      return;
+    }
+    var showRows = Math.min(50, aoa.length);
+    var mergeRow = mergeOn && selectedHeaderRow > 0 ? selectedHeaderRow - 1 : -1;
+
+    // Detect date/time columns from data rows
+    var dateCols = {}, timeCols = {};
+    for (var ci = 0; ci < maxCols; ci++) {
+      var colVals = [];
+      for (var ri = selectedHeaderRow + 1; ri < Math.min(aoa.length, selectedHeaderRow + 21); ri++) {
+        if (aoa[ri] && aoa[ri][ci] !== undefined) colVals.push(aoa[ri][ci]);
+      }
+      if (looksLikeDateCol(colVals)) dateCols[ci] = true;
+      if (looksLikeTimeCol(colVals)) timeCols[ci] = true;
+    }
+
+    // Count hidden columns
+    var hiddenCount = 0;
+    for (var hc = 0; hc < maxCols; hc++) { if (hiddenCols[hc]) hiddenCount++; }
+
+    var html = '';
+    // Column toggle toolbar
+    html += '<div style="padding:6px 10px;background:#f0f9ff;border-bottom:1px solid var(--bd);display:flex;flex-wrap:wrap;gap:3px;align-items:center">';
+    html += '<span style="font-size:.72rem;color:var(--tx2);margin-right:4px">คลิกเพื่อซ่อน/แสดง:</span>';
+    for (var ct = 0; ct < maxCols; ct++) {
+      var isHidden = hiddenCols[ct];
+      var colTag = dateCols[ct] ? '📅' : (timeCols[ct] ? '⏱' : '');
+      html += '<span onclick="toggleCol(' + ct + ')" style="cursor:pointer;padding:2px 6px;border-radius:4px;font-size:.7rem;font-weight:600;border:1px solid ' + (isHidden ? '#fca5a5' : '#bae6fd') + ';background:' + (isHidden ? '#fef2f2' : '#f0f9ff') + ';color:' + (isHidden ? '#b91c1c' : '#0369a1') + ';text-decoration:' + (isHidden ? 'line-through' : 'none') + '">' + colTag + colLetter(ct) + '</span>';
+    }
+    if (hiddenCount > 0) {
+      html += '<span onclick="showAllCols()" style="cursor:pointer;padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:600;background:#dc2626;color:#fff;margin-left:6px">แสดงทั้งหมด (' + hiddenCount + ' ซ่อน)</span>';
+    }
+    html += '</div>';
+
+    html += '<table><thead><tr><th style="background:#2C3E50;color:#fff">#</th>';
+    for (var c = 0; c < maxCols; c++) {
+      if (hiddenCols[c]) continue;
+      var colInfo = dateCols[c] ? ' 📅' : (timeCols[c] ? ' ⏱' : '');
+      html += '<th style="background:#2C3E50;color:#fff">' + colLetter(c) + colInfo + '</th>';
+    }
+    html += '</tr></thead><tbody>';
+
+    for (var i = 0; i < showRows; i++) {
+      var row = aoa[i] || [];
+      var isHdr = (i === selectedHeaderRow);
+      var isMerge = (i === mergeRow);
+      var trClass = isHdr ? 'header-row' : (isMerge ? 'header-row2' : '');
+      html += '<tr class="' + trClass + '" onclick="pickHeaderRow(' + i + ')" style="cursor:pointer" title="คลิกเพื่อเลือกเป็นแถว Header">';
+      var label = (i + 1) + (isHdr ? ' ◄ HEADER' : (isMerge ? ' ◄ ชื่อหลัก' : ''));
+      var bgColor = isHdr ? '#fff3cd' : (isMerge ? '#e0f2fe' : '#f8fafc');
+      html += '<td style="font-weight:700;color:var(--tx2);background:' + bgColor + '">' + label + '</td>';
+      for (var c2 = 0; c2 < maxCols; c2++) {
+        if (hiddenCols[c2]) continue;
+        var v = Array.isArray(row) ? row[c2] : undefined;
+        var display = formatCellDisplay(v, !isHdr && !isMerge && dateCols[c2], !isHdr && !isMerge && timeCols[c2]);
+        html += '<td>' + display + '</td>';
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    if (aoa.length > showRows) html += '<div style="text-align:center;padding:8px;color:var(--tx2);font-size:.8rem">แสดง ' + showRows + ' จาก ' + aoa.length + ' แถว</div>';
+    document.getElementById('rawTbl').innerHTML = html;
+
+    // Show preview of combined headers
+    updateHeaderPreview();
+  } catch (err) {
+    setStatus('❌ Error แสดงตาราง: ' + err.message, 'err');
+    console.error('renderRawTable error:', err);
+  }
+}
+
+function toggleCol(ci) { hiddenCols[ci] = !hiddenCols[ci]; renderRawTable(currentSheet); }
+function showAllCols() { hiddenCols = {}; renderRawTable(currentSheet); }
+
+function formatCellDisplay(v, isDate, isTime) {
+  if (v === null || v === undefined || v === '') return '';
+  if (typeof v === 'number') {
+    if (isNaN(v)) return '';
+    if (isDate) return excelDateToStr(v) || v;
+    if (isTime) return excelTimeToMin(v).toFixed(2) + ' min';
+    // Display all numbers with 2 decimal places
+    if (Number.isInteger(v)) return v;
+    return v.toFixed(2);
+  }
+  if (typeof v === 'boolean') return String(v);
+  return String(v).substring(0, 50);
+}
+
+function colLetter(i) {
+  var s = '', n = i;
+  while (n >= 0) { s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26) - 1; }
+  return s;
+}
+
+function pickHeaderRow(idx) {
+  selectedHeaderRow = idx;
+  pendingSheetData[currentSheet].headerRow = idx;
+  renderRawTable(currentSheet);
+}
+
+function onMergeToggle() {
+  renderRawTable(currentSheet);
+}
+
+// Show preview of what header names will be
+function updateHeaderPreview() {
+  var el = document.getElementById('previewHeaders');
+  try {
+    var data = pendingSheetData[currentSheet];
+    var headers = buildHeaders(data.aoa, data.headerRow);
+    if (headers.length === 0) { el.innerHTML = ''; return; }
+    var html = '<div style="font-size:.78rem;color:var(--tx2);margin-top:4px"><b>ชื่อคอลัมน์ที่จะใช้:</b> ';
+    html += headers.filter(function(h) { return !h.startsWith('Col_'); }).slice(0, 15).map(function(h) {
+      return '<span style="background:#e0f2fe;padding:2px 8px;border-radius:10px;margin:2px;display:inline-block">' + h + '</span>';
+    }).join(' ');
+    html += '</div>';
+    el.innerHTML = html;
+  } catch(e) { el.innerHTML = ''; }
+}
+
+// =================== FIXED COLUMN NAMES ===================
+// Hard-coded column mapping for F-RCMDS-C-015 format (0-indexed)
+var FIXED_COL_MAP = {
+  0: '_skip_',      // A: row flag
+  1: 'Date',        // B: วันที่ผลิต
+  2: '_skip_',      // C: (not used)
+  3: 'Machine',     // D: Machine
+  4: 'Product',     // E: เบอร์ยาง
+  5: 'Meter Start', // F: Unit Meter Start
+  6: 'Meter End',   // G: Unit Meter End  -- Wait, user said G = Actual
+  // Let me re-check from screenshot: Row 3 headers are:
+  // E=Start, F=End, G=Actual, H=Total, I=Start(time), J=End(time), K=Time use, L=kg(Batch), M=min(Time), N=mm(Thickness), O=Weight, P=Width
+};
+
+// Actually let's use the EXACT mapping from the screenshot row 3:
+// Col: A  B     C  D        E      F    G       H     I      J    K         L      M     N          O       P
+//      -  Date  -  Machine  Product Start End   Actual Total  TStart TEnd  TimeUse Batch  Time    Thickness  Weight  Width
+// But the user confirmed: G=Actual(Y), L=Batch, M=Time, N=Thickness, O=Weight, P=Width
+
+var FIXED_HEADERS = [
+  '_skip_',       // 0  A
+  'Date',         // 1  B
+  '_skip_',       // 2  C
+  'Machine',      // 3  D
+  'Product',      // 4  E
+  'Meter Start',  // 5  F (Unit Meter Start)
+  'Meter End',    // 6  G (Unit Meter End) -- hmm
+  'Actual',       // 7  H? or G?
+  'Total kWh',    // 8
+  'Time Start',   // 9
+  'Time End',     // 10
+  'Time use',     // 11
+  'Batch',        // 12
+  'Time (min)',   // 13
+  'Thickness',    // 14
+  'Weight Input', // 15
+  'Width'         // 16 -- but we cap at 16
+];
+
+// The user explicitly said: Y = col G (Actual), X = L(Batch), M(Time), N(Thickness), O(Weight), P(Width)
+// From screenshot Row 3: col indices for these values:
+// Looking at row 3 display:  #=rownum, then A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P
+// Row 3 values at columns:   ?, 60, ?, ?, ?, Start, End, Actual, Total, Start, End, Time use, kg., min, mm, ?, ?
+// So: G(6)=Actual, H(7)=Total, K(10)=Time use, L(11)=kg./Batch, M(12)=min/Time, N(13)=mm/Thickness
+// But we need to figure out exact positions for O=Weight, P=Width from the actual file
+
+// SAFEST approach: build headers from Row 3 data but override with known names
+function buildHeaders(aoa, headerRow) {
+  var hdrRow = aoa[headerRow] || [];
+  var maxLen = Math.min(16, hdrRow.length);
+  var headers = [];
+
+  // Use fixed names based on actual Excel column positions (verified from file)
+  var fixedNames = {
+    0: 'No.', 1: 'Date', 2: 'Machine', 3: 'Product',
+    4: 'Meter Start', 5: 'Meter End', 6: 'Actual', 7: 'Total kWh',
+    8: 'Time Start', 9: 'Time End', 10: 'Time use',
+    11: 'Batch', 12: 'Time (min)', 13: 'Thickness', 14: 'Weight Input', 15: 'Width'
+  };
+
+  // Check if this looks like the F-RCMDS-C-015 format:
+  // Row 3 should have "Start","End","Actual","Total" somewhere in columns 5-8
+  var isKnownFormat = false;
+  for (var ci = 0; ci < Math.min(hdrRow.length, 10); ci++) {
+    if (String(hdrRow[ci]).trim() === 'Actual' || String(hdrRow[ci]).trim() === 'Total') {
+      isKnownFormat = true; break;
+    }
+  }
+
+  if (isKnownFormat) {
+    // Use fixed column names — most reliable for F-RCMDS-C-015 format
+    for (var i = 0; i < maxLen; i++) {
+      if (fixedNames[i] !== undefined) {
+        headers.push(fixedNames[i]);
+      } else {
+        headers.push('Col_' + colLetter(i));
+      }
+    }
+  } else {
+    // Fallback: parse from header row with merge support
+    var mergeOn = document.getElementById('mergeHeaders').checked;
+    var aboveRow = (mergeOn && headerRow > 0) ? (aoa[headerRow - 1] || []) : [];
+    var lastAbove = '';
+
+    for (var i2 = 0; i2 < maxLen; i2++) {
+      var belowStr = cellToStr(hdrRow[i2]);
+      var aboveStr = cellToStr(aboveRow[i2] || '');
+      if (mergeOn) {
+        if (aboveStr !== '') lastAbove = aboveStr;
+        else aboveStr = lastAbove;
+      }
+      var name = '';
+      if (mergeOn && aboveStr && belowStr) {
+        name = (aboveStr === belowStr) ? aboveStr : aboveStr + ' (' + belowStr + ')';
+      } else if (mergeOn && aboveStr && !belowStr) { name = aboveStr; }
+      else if (belowStr) { name = belowStr; }
+      else { name = 'Col_' + colLetter(i2); }
+      if (headers.indexOf(name) >= 0) name = name + '_' + colLetter(i2);
+      headers.push(name);
+    }
+  }
+  return headers;
+}
+
+function cellToStr(v) {
+  if (v === null || v === undefined || v === '') return '';
+  if (typeof v === 'number') {
+    // Small integers might be meaningful (like row numbers) but skip as header
+    // But keep if it looks like a year or code
+    return String(v);
+  }
+  return String(v).trim();
+}
+
+// =================== CONFIRM & ADD DATA ===================
+function confirmSheet() {
+  try {
+    var sn = currentSheet;
+    var data = pendingSheetData[sn];
+    var rows = aoaToObjects(data.aoa, data.headerRow);
+    if (rows.length === 0) { alert('ไม่พบข้อมูลหลังแถว Header — ลองเลือกแถวอื่น หรือเปิด "รวม Header 2 แถว"'); return; }
+    addMonthsSplit(rows, pendingFilename);
+    var monthCount = Object.keys(allMonths).length;
+    setStatus('✅ เพิ่มสำเร็จ: ' + rows.length + ' แถว แบ่งเป็น ' + monthCount + ' เดือน', 'ok');
+    refreshUI();
+  } catch (err) { setStatus('❌ Error ยืนยัน Sheet: ' + err.message, 'err'); console.error(err); }
+}
+
+function confirmAllSheets() {
+  try {
+    var total = 0;
+    for (var sn in pendingSheetData) {
+      var data = pendingSheetData[sn];
+      var rows = aoaToObjects(data.aoa, data.headerRow);
+      if (rows.length > 0) { addMonthsSplit(rows, pendingFilename); total += rows.length; }
+    }
+    if (total === 0) { alert('ไม่พบข้อมูลในทุก Sheet'); return; }
+    var monthCount = Object.keys(allMonths).length;
+    setStatus('✅ เพิ่มทุก Sheet สำเร็จ: ' + total + ' แถว แบ่งเป็น ' + monthCount + ' เดือน', 'ok');
+    refreshUI();
+  } catch (err) { setStatus('❌ Error: ' + err.message, 'err'); console.error(err); }
+}
+
+function aoaToObjects(aoa, headerRow) {
+  var headers = buildHeaders(aoa, headerRow);
+
+  // Detect date/time columns from data
+  var dateCols = {}, timeCols = {};
+  for (var ci = 0; ci < headers.length; ci++) {
+    var colVals = [];
+    for (var ri = headerRow + 1; ri < Math.min(aoa.length, headerRow + 30); ri++) {
+      if (aoa[ri] && aoa[ri][ci] !== undefined) colVals.push(aoa[ri][ci]);
+    }
+    if (looksLikeDateCol(colVals)) dateCols[ci] = true;
+    if (looksLikeTimeCol(colVals)) timeCols[ci] = true;
+  }
+
+  var rows = [];
+  for (var i = headerRow + 1; i < aoa.length; i++) {
+    var r = aoa[i];
+    if (!r || !Array.isArray(r) || r.every(function(c) { return c === null || c === undefined || c === ''; })) continue;
+    var obj = {};
+    var hasNum = false;
+    for (var ci2 = 0; ci2 < headers.length; ci2++) {
+      var h = headers[ci2];
+      var v = r[ci2];
+      if (v === undefined || v === null) { v = ''; }
+
+      // Date column → convert to string (not for regression)
+      if (dateCols[ci2] && typeof v === 'number') {
+        obj[h] = excelDateToStr(v);
+        continue;
+      }
+
+      // Time column → convert to minutes
+      if (timeCols[ci2] && typeof v === 'number' && v > 0 && v < 1.5) {
+        v = excelTimeToMin(v);
+      }
+
+      if (typeof v === 'number' && !isNaN(v)) { obj[h] = v; hasNum = true; }
+      else if (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v))) { obj[h] = Number(v); hasNum = true; }
+      else { obj[h] = typeof v === 'object' ? String(v) : v; }
+    }
+    if (hasNum) rows.push(obj);
+  }
+  return rows;
+}
+
+// =================== MONTH MANAGEMENT ===================
+// Thai month names for display
+var THAI_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+
+function addMonth(label, rows, filename) {
+  var key = label.trim();
+  if (allMonths[key]) allMonths[key].rows = allMonths[key].rows.concat(rows);
+  else allMonths[key] = { rows: rows, filename: filename, selected: true };
+}
+
+// Split rows into monthly groups based on Date column
+function addMonthsSplit(rows, filename) {
+  var dateKey = 'Date';
+  // Check if rows have a Date field with dd/mm/yyyy format
+  var hasDates = rows.length > 0 && rows[0][dateKey] && typeof rows[0][dateKey] === 'string' && rows[0][dateKey].indexOf('/') >= 0;
+  if (!hasDates) {
+    // Fallback: add all as single group
+    addMonth(filename, rows, filename);
+    return;
+  }
+  // Group by month/year from date string "dd/mm/yyyy"
+  var groups = {};
+  rows.forEach(function(r) {
+    var ds = r[dateKey] || '';
+    var parts = ds.split('/');
+    var monthKey;
+    if (parts.length === 3) {
+      var mm = parseInt(parts[1], 10);
+      var yyRaw = parts[2].trim();
+      var yrNum = parseInt(yyRaw, 10);
+      var beShort;
+      if (yyRaw.length === 4) {
+        // 4-digit year: check if Buddhist Era (>2400) or Gregorian (<2400)
+        if (yrNum >= 2400) { beShort = String(yrNum).substring(2); }
+        else { beShort = String(yrNum + 543).substring(2); }
+      } else {
+        // 2-digit year: determine if Gregorian or BE
+        // If <=99 and looks like Gregorian short (e.g. 25 for 2025), convert to BE
+        if (yrNum <= 50) { beShort = String((2000 + yrNum + 543) % 100).padStart(2,'0'); }
+        else { beShort = yyRaw; } // assume already BE short
+      }
+      monthKey = THAI_MONTHS[mm - 1] + ' ' + beShort;
+    } else {
+      monthKey = 'ไม่ระบุเดือน';
+    }
+    if (monthKey === 'ไม่ระบุเดือน') return; // skip rows without valid date
+    if (!groups[monthKey]) groups[monthKey] = [];
+    groups[monthKey].push(r);
+  });
+  // Sort keys by date and add each group
+  var keys = Object.keys(groups);
+  keys.sort(function(a, b) {
+    // Extract month index and year for sorting
+    function toSort(k) {
+      var idx = -1;
+      for (var i = 0; i < THAI_MONTHS.length; i++) { if (k.indexOf(THAI_MONTHS[i]) === 0) { idx = i; break; } }
+      var yr = parseInt(k.replace(/[^\d]/g, ''), 10) || 0;
+      return yr * 100 + idx;
+    }
+    return toSort(a) - toSort(b);
+  });
+  keys.forEach(function(k) {
+    addMonth(k, groups[k], filename);
+  });
+}
+
+function removeFile(fn) {
+  for (var k in allMonths) { if (allMonths[k].filename === fn) delete allMonths[k]; }
+  refreshUI();
+}
+
+// Get sorted month keys for consistent ordering
+function getSortedMonthKeys() {
+  var keys = Object.keys(allMonths);
+  keys.sort(function(a, b) {
+    function toSort(k) {
+      var idx = -1;
+      for (var i = 0; i < THAI_MONTHS.length; i++) { if (k.indexOf(THAI_MONTHS[i]) === 0) { idx = i; break; } }
+      var yr = parseInt(k.replace(/[^\d]/g, ''), 10) || 0;
+      return yr * 100 + idx;
+    }
+    return toSort(a) - toSort(b);
+  });
+  return keys;
+}
+
+function isThaiMonthKey(k) {
+  for (var i = 0; i < THAI_MONTHS.length; i++) { if (k.indexOf(THAI_MONTHS[i]) === 0) return true; }
+  return false;
+}
+
+function populateMonthDropdowns() {
+  var keys = getSortedMonthKeys();
+  var fromSel = document.getElementById('monthFrom');
+  var toSel = document.getElementById('monthTo');
+  if (!fromSel || !toSel) return;
+
+  var prevFrom = fromSel.value, prevTo = toSel.value;
+  fromSel.innerHTML = '';
+  toSel.innerHTML = '';
+
+  // Only show proper month keys (Thai month names), skip filename-based keys
+  var monthKeys = keys.filter(function(k){ return isThaiMonthKey(k); });
+  // Auto-select non-month keys so their data is included
+  keys.forEach(function(k){ if(!isThaiMonthKey(k)) allMonths[k].selected = true; });
+
+  monthKeys.forEach(function(k) {
+    var rows = allMonths[k].rows.length;
+    var o1 = document.createElement('option'); o1.value = k; o1.textContent = k + ' (' + rows + ' แถว)';
+    var o2 = document.createElement('option'); o2.value = k; o2.textContent = k + ' (' + rows + ' แถว)';
+    fromSel.appendChild(o1);
+    toSel.appendChild(o2);
+  });
+
+  // Default: first to last month
+  if (monthKeys.length > 0) {
+    fromSel.value = prevFrom && monthKeys.indexOf(prevFrom) >= 0 ? prevFrom : monthKeys[0];
+    toSel.value = prevTo && monthKeys.indexOf(prevTo) >= 0 ? prevTo : monthKeys[monthKeys.length - 1];
+    var topRange = document.getElementById('topMonthRange');
+    if (topRange) { topRange.classList.remove('hide'); topRange.style.display = 'flex'; }
+  }
+  onMonthRangeChange();
+}
+
+function onMonthRangeChange() {
+  var keys = getSortedMonthKeys();
+  var monthKeys = keys.filter(function(k){ return isThaiMonthKey(k); });
+  var fromVal = document.getElementById('monthFrom').value;
+  var toVal = document.getElementById('monthTo').value;
+  var fromIdx = monthKeys.indexOf(fromVal);
+  var toIdx = monthKeys.indexOf(toVal);
+  if (fromIdx < 0) fromIdx = 0;
+  if (toIdx < 0) toIdx = monthKeys.length - 1;
+  if (fromIdx > toIdx) { var tmp = fromIdx; fromIdx = toIdx; toIdx = tmp; }
+
+  var selCount = 0, selRows = 0;
+  // Select/deselect only month-based keys; non-month keys stay selected
+  for (var i = 0; i < monthKeys.length; i++) {
+    var inRange = (i >= fromIdx && i <= toIdx);
+    allMonths[monthKeys[i]].selected = inRange;
+    if (inRange) { selCount++; selRows += allMonths[monthKeys[i]].rows.length; }
+  }
+  var info = document.getElementById('selInfo');
+  if (info) info.textContent = selCount + ' เดือน, ' + selRows + ' แถว';
+}
+
+function previewMonthData() {
+  var prevEl = document.getElementById('previewMonth');
+  if (!prevEl) return;
+  var mn = prevEl.value;
+  var tblDiv = document.getElementById('monthPreviewTbl');
+  var infoSpan = document.getElementById('previewInfo');
+  if (!mn || !allMonths[mn]) {
+    if (tblDiv) tblDiv.classList.add('hide');
+    if (infoSpan) infoSpan.textContent = '';
+    return;
+  }
+  tblDiv.classList.remove('hide');
+  var rows = allMonths[mn].rows;
+  infoSpan.textContent = rows.length + ' แถว';
+
+  // Get headers from first row
+  var headers = rows.length > 0 ? Object.keys(rows[0]) : [];
+  // Filter to show only useful columns (skip hidden ones like No.)
+  var showHeaders = headers.filter(function(h) { return h !== 'No.'; });
+  var showMax = Math.min(rows.length, 100);
+
+  var html = '<table><thead><tr><th style="background:#2C3E50;color:#fff">#</th>';
+  showHeaders.forEach(function(h) { html += '<th style="background:#2C3E50;color:#fff">' + h + '</th>'; });
+  html += '</tr></thead><tbody>';
+
+  for (var i = 0; i < showMax; i++) {
+    var r = rows[i];
+    html += '<tr><td style="color:var(--tx2)">' + (i + 1) + '</td>';
+    showHeaders.forEach(function(h) {
+      var v = r[h];
+      if (typeof v === 'number') v = v.toFixed(2);
+      else if (v === '' || v === undefined || v === null) v = '-';
+      html += '<td>' + v + '</td>';
+    });
+    html += '</tr>';
+  }
+  if (rows.length > showMax) {
+    html += '<tr><td colspan="' + (showHeaders.length + 1) + '" style="text-align:center;color:var(--tx2);font-style:italic">... แสดง ' + showMax + ' จาก ' + rows.length + ' แถว ...</td></tr>';
+  }
+  html += '</tbody></table>';
+  var mdt = document.getElementById('monthDataTbl');
+  if (mdt) mdt.innerHTML = html;
+}
+
+function updateSelectionInfo() {
+  var selCount = 0, selRows = 0;
+  for (var k in allMonths) { if (allMonths[k].selected) { selCount++; selRows += allMonths[k].rows.length; } }
+  var info = document.getElementById('selInfo');
+  if (info) info.textContent = selCount > 0 ? selCount + ' เดือน, ' + selRows + ' แถว' : '';
+}
+
+// =================== DEFAULT VARIABLE DETECTION ===================
+// Y variable: column G = Actual (kWh)
+function isYVar(h) { return /actual|kwh|energy|power|total.*kwh|พลังงาน|ไฟฟ้า/i.test(h); }
+
+// X variables: L=Batch, M=Time, N=Thickness, O=Weight, P=Width
+// Fixed column indices (0-based): L=11, M=12, N=13, O=14, P=15
+var FIXED_Y_COL = 6;   // G
+var FIXED_X_COLS = [11, 12, 13, 14, 15]; // L, M, N, O, P
+
+function isDefaultXVar(h) {
+  return /batch|แบทช์|ครั้ง/i.test(h) ||
+         /time|เวลา|Time use/i.test(h) ||
+         /thick|ความหนา|หนา/i.test(h) ||
+         /weight|น้ำหนัก|นน\.|input/i.test(h) ||
+         /width|ความกว้าง|กว้าง/i.test(h);
+}
+
+// Check if a header came from a fixed column index
+function isFromFixedXCol(h, allHeaders) {
+  var idx = allHeaders.indexOf(h);
+  return FIXED_X_COLS.indexOf(idx) >= 0;
+}
+function isFromFixedYCol(h, allHeaders) {
+  return allHeaders.indexOf(h) === FIXED_Y_COL;
+}
+
+function refreshUI() {
+  var flist = document.getElementById('flist');
+  var filesSet = {};
+  for (var k in allMonths) filesSet[allMonths[k].filename] = true;
+  var files = Object.keys(filesSet);
+  flist.innerHTML = files.map(function(f) { return '<div class="fbadge">📎 ' + f + ' <span class="x" onclick="removeFile(\'' + f.replace(/'/g, "\\'") + '\')">✕</span></div>'; }).join('');
+
+  var totalRows = 0;
+  for (var key in allMonths) { totalRows += allMonths[key].rows.length; }
+  var monthCount = Object.keys(allMonths).length;
+  document.getElementById('totalInfo').textContent = '(' + monthCount + ' เดือน, ' + totalRows + ' แถวรวม)';
+  populateMonthDropdowns();
+
+  if (Object.keys(allMonths).length > 0) {
+    // s1b is hidden; month range is in header bar
+
+    // Get all header names and their original column indices
+    var allH = {};
+    var headerOrder = []; // preserve order
+    for (var mk in allMonths) {
+      var mm = allMonths[mk];
+      if (mm.rows.length > 0) {
+        Object.keys(mm.rows[0]).forEach(function(h) {
+          if (!allH[h]) { allH[h] = true; headerOrder.push(h); }
+        });
+      }
+    }
+
+    // Build set of forced column names (Y + X) that must always be available
+    var forcedYName = headerOrder[FIXED_Y_COL] || null;
+    var forcedXNames = {};
+    FIXED_X_COLS.forEach(function(ci) {
+      if (headerOrder[ci]) forcedXNames[headerOrder[ci]] = true;
+    });
+
+    numericHeaders = [];
+    var addedSet = {};
+    for (var hi = 0; hi < headerOrder.length; hi++) {
+      var h = headerOrder[hi];
+      var numC = 0, tot = 0;
+      for (var mk2 in allMonths) {
+        allMonths[mk2].rows.forEach(function(r) { tot++; if (typeof r[h] === 'number' && !isNaN(r[h])) numC++; });
+      }
+      // Include if >30% numeric OR if it's a forced Y/X column (even with sparse data)
+      var isForced = (h === forcedYName) || forcedXNames[h];
+      if (isForced || (numC / Math.max(tot, 1) > 0.3)) {
+        if (!addedSet[h]) { numericHeaders.push(h); addedSet[h] = true; }
+      }
+    }
+
+    // Y variable: fixed to column G (Actual)
+    var ys = document.getElementById('yv'); ys.innerHTML = '';
+    numericHeaders.forEach(function(h) {
+      var o = document.createElement('option'); o.value = h; o.textContent = h;
+      if (forcedYName && h === forcedYName) o.selected = true;
+      else if (!forcedYName && isYVar(h)) o.selected = true;
+      ys.appendChild(o);
+    });
+
+    // X variables: fixed to columns L(11), M(12), N(13), O(14), P(15)
+    var xd = document.getElementById('xchips'); xd.innerHTML = '';
+    numericHeaders.forEach(function(h) {
+      var lbl = document.createElement('label'); lbl.className = 'chip';
+      var cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = h;
+      cb.onchange = function() { lbl.classList.toggle('on', cb.checked); };
+      // Auto-check if this is a fixed X column
+      var shouldCheck = forcedXNames[h] || (!Object.keys(forcedXNames).length && isDefaultXVar(h));
+      if (shouldCheck) { cb.checked = true; lbl.classList.add('on'); }
+      lbl.appendChild(cb); lbl.append(' ' + h); xd.appendChild(lbl);
+    });
+    document.getElementById('s2').classList.remove('hide');
+  } else {
+    document.getElementById('s2').classList.add('hide');
+    document.getElementById('s3').classList.add('hide');
+    var topRange = document.getElementById('topMonthRange');
+    if (topRange) { topRange.classList.add('hide'); topRange.style.display = 'none'; }
+  }
+}
+
+// =================== SAMPLE DATA ===================
+function loadSample() {
+  allMonths = {};
+  var hds = ['Product', 'Total_kWh', 'Batch', 'Weight_kg', 'Time_min', 'Thickness_mm', 'Width_mm'];
+  var base = [
+    ['CL',20.1,1,210,8,0.5,120],['EHA-U05EUP',1233.1,42,9315.6,393,1.2,250],['EHA-U05EUP',2330.4,80,17744,678,1.5,300],
+    ['EHA-U05EUP',2528.6,84,18631.2,695,1.3,280],['EHA-U05EUP',2538,84,18631.2,693,1.4,290],
+    ['EHA-SA21E',2857.5,82,18515.6,660,1.1,260],['EHA-SA21E',2587.7,73,16483.4,686,1.0,240],
+    ['GL-PFM',2155.2,74,16339.2,664,0.8,220],['MBSC-HS',1875.6,45,8608.5,498,0.9,200],['EHA-U04',1480.2,50,11115,408,0.7,180]
+  ];
+  ['ม.ค. 69','ก.พ. 69','มี.ค. 69','เม.ย. 69','พ.ค. 69','มิ.ย. 69'].forEach(function(mn) {
+    var rows = base.map(function(b) {
+      var n = function() { return 1 + (Math.random() - .5) * .1; };
+      var o = {}; hds.forEach(function(h, i) { o[h] = i === 0 ? b[i] : Math.round(b[i] * n() * 100) / 100; });
+      return o;
+    });
+    allMonths[mn] = { rows: rows, filename: 'Sample', selected: true };
+  });
+  refreshUI();
+}
+
+// =================== OLS ENGINE ===================
+function ols(Y, X) {
+  var n = Y.length, k = X[0].length, p = k + 1;
+  if (n <= p) return null;
+  var Xa = Y.map(function(_, i) { return [1].concat(X[i]); });
+  var XtX = []; for (var i=0;i<p;i++){XtX[i]=[];for(var j=0;j<p;j++){var s=0;for(var r=0;r<n;r++)s+=Xa[r][i]*Xa[r][j];XtX[i][j]=s;}}
+  var XtY = []; for (var i2=0;i2<p;i2++){var s2=0;for(var r2=0;r2<n;r2++)s2+=Xa[r2][i2]*Y[r2];XtY[i2]=s2;}
+  var aug = XtX.map(function(r,i){return r.concat([XtY[i]]);});
+  for(var c=0;c<p;c++){var mx=c;for(var r3=c+1;r3<p;r3++)if(Math.abs(aug[r3][c])>Math.abs(aug[mx][c]))mx=r3;var tmp=aug[c];aug[c]=aug[mx];aug[mx]=tmp;var pv=aug[c][c];if(Math.abs(pv)<1e-12)continue;for(var j2=c;j2<=p;j2++)aug[c][j2]/=pv;for(var r4=0;r4<p;r4++){if(r4===c)continue;var f=aug[r4][c];for(var j3=c;j3<=p;j3++)aug[r4][j3]-=f*aug[c][j3];}}
+  var beta=aug.map(function(r){return r[p];});
+  var pred=Xa.map(function(r){var s=0;for(var i=0;i<r.length;i++)s+=r[i]*beta[i];return s;});
+  var resi=Y.map(function(y,i){return y-pred[i];});
+  var yM=Y.reduce(function(a,b){return a+b;},0)/n;
+  var SSE=resi.reduce(function(s,r){return s+r*r;},0),SST=Y.reduce(function(s,y){return s+(y-yM)*(y-yM);},0),SSR=SST-SSE;
+  var R2=SST>0?1-SSE/SST:0,aR2=1-(1-R2)*(n-1)/(n-p);
+  var MSR=SSR/k,MSE=SSE/(n-p),SE=Math.sqrt(Math.max(0,MSE)),CV=yM!==0?SE/Math.abs(yM)*100:0;
+  var F=MSE>0?MSR/MSE:0,Fp=fPv(F,k,n-p);
+  var inv=invertM(XtX);
+  var seB=beta.map(function(_,i){return Math.sqrt(Math.max(0,MSE*(inv?inv[i][i]:0)));});
+  var tS=beta.map(function(b,i){return seB[i]>0?b/seB[i]:0;});
+  var pV=tS.map(function(t){return tPv(Math.abs(t),n-p);});
+  var corr=0;
+  if(k===1){var xM=X.reduce(function(s,r){return s+r[0];},0)/n;var sx=Math.sqrt(X.reduce(function(s,r){return s+(r[0]-xM)*(r[0]-xM);},0));var sy=Math.sqrt(SST);corr=sx>0&&sy>0?X.reduce(function(s,r,i){return s+(r[0]-xM)*(Y[i]-yM);},0)/(sx*sy):0;}
+  return {beta:beta,pred:pred,resi:resi,R2:R2,aR2:aR2,SE:SE,CV:CV,F:F,Fp:Fp,SSR:SSR,SSE:SSE,SST:SST,MSR:MSR,MSE:MSE,seB:seB,tS:tS,pV:pV,n:n,k:k,p:p,yM:yM,corr:corr};
+}
+function invertM(M){var n=M.length;var a=M.map(function(r,i){var row=r.slice();for(var j=0;j<n;j++)row.push(i===j?1:0);return row;});for(var c=0;c<n;c++){var mx=c;for(var r=c+1;r<n;r++)if(Math.abs(a[r][c])>Math.abs(a[mx][c]))mx=r;var tmp=a[c];a[c]=a[mx];a[mx]=tmp;var pv=a[c][c];if(Math.abs(pv)<1e-12)return null;for(var j=0;j<2*n;j++)a[c][j]/=pv;for(var r2=0;r2<n;r2++){if(r2===c)continue;var f=a[r2][c];for(var j2=0;j2<2*n;j2++)a[r2][j2]-=f*a[c][j2];}}return a.map(function(r){return r.slice(n);});}
+function tPv(t,df){return incB(df/(df+t*t),df/2,.5);}
+function fPv(F,d1,d2){if(F<=0||d1<=0||d2<=0)return 1;return incB(d2/(d2+d1*F),d2/2,d1/2);}
+function incB(x,a,b){if(x<=0)return 1;if(x>=1)return 0;var lB=lnG(a)+lnG(b)-lnG(a+b);var fr=Math.exp(Math.log(x)*a+Math.log(1-x)*b-lB);var f=1,c=1,d=0;for(var i=0;i<=200;i++){var m=Math.floor(i/2),num;if(i===0)num=1;else if(i%2===0)num=(m*(b-m)*x)/((a+2*m-1)*(a+2*m));else num=-((a+m)*(a+b+m)*x)/((a+2*m)*(a+2*m+1));d=1+num*d;if(Math.abs(d)<1e-30)d=1e-30;d=1/d;c=1+num/c;if(Math.abs(c)<1e-30)c=1e-30;f*=c*d;if(Math.abs(c*d-1)<1e-10)break;}return 1-fr*f/a;}
+function lnG(z){var c=[76.18009172947146,-86.50532032941678,24.01409824083091,-1.231739572450155,.001208650973866179,-5.395239384953e-6];var x=z,y=z,t=x+5.5;t-=(x+.5)*Math.log(t);var s=1.000000000190015;for(var j=0;j<6;j++)s+=c[j]/++y;return-t+Math.log(2.5066282746310005*s/x);}
+
+// =================== RUN ANALYSIS ===================
+var R = {};
+function runAll() {
+  try {
+    var yVar = document.getElementById('yv').value;
+    var xSel = Array.from(document.querySelectorAll('#xchips input:checked')).map(function(c){return c.value;}).filter(function(v){return v!==yVar;});
+    if (!xSel.length) return alert('เลือกตัวแปร X อย่างน้อย 1 ตัว');
+    var selected = [];
+    for (var k in allMonths) { if (allMonths[k].selected) selected.push([k, allMonths[k]]); }
+    if (!selected.length) return alert('เลือกอย่างน้อย 1 ชุดข้อมูล');
+
+    R = { yVar:yVar, xSel:xSel, months:{}, combined:null };
+    selected.forEach(function(pair) {
+      var mn=pair[0], m=pair[1];
+      var valid = m.rows.filter(function(r) {
+        return typeof r[yVar]==='number' && !isNaN(r[yVar]) && xSel.every(function(x){return typeof r[x]==='number' && !isNaN(r[x]);});
+      });
+      if (valid.length < 3) return;
+      var Y = valid.map(function(r){return r[yVar];});
+      var simple = {};
+      xSel.forEach(function(xv) { simple[xv] = ols(Y, valid.map(function(r){return [r[xv]];})); });
+      var multi = null;
+      if (xSel.length >= 2) multi = ols(Y, valid.map(function(r){return xSel.map(function(v){return r[v];});}));
+      R.months[mn] = { valid:valid, Y:Y, simple:simple, multi:multi, n:valid.length };
+    });
+
+    var allValid = [];
+    for (var mk in R.months) allValid = allValid.concat(R.months[mk].valid);
+    if (allValid.length >= 3) {
+      var Y2 = allValid.map(function(r){return r[yVar];});
+      var simple2 = {};
+      xSel.forEach(function(xv) { simple2[xv] = ols(Y2, allValid.map(function(r){return [r[xv]];})); });
+      var multi2 = null;
+      if (xSel.length >= 2) multi2 = ols(Y2, allValid.map(function(r){return xSel.map(function(v){return r[v];});}));
+      R.combined = { valid:allValid, Y:Y2, simple:simple2, multi:multi2, n:allValid.length };
+    }
+    document.getElementById('s3').classList.remove('hide');
+    chartsRendered = {};
+    renderCombined(); renderMonthly(); renderCompare(); renderTrend(); renderProduct();
+    document.getElementById('s3').scrollIntoView({ behavior:'smooth' });
+  } catch (err) { setStatus('❌ Error วิเคราะห์: ' + err.message, 'err'); console.error(err); }
+}
+
+var chartsRendered = {};
+function mTab(el) {
+  var t = el.dataset.t;
+  ['combined','monthly','compare','trend','product'].forEach(function(x){document.getElementById('t-'+x).classList.add('hide');});
+  document.getElementById('t-'+t).classList.remove('hide');
+  document.querySelectorAll('#mainTabs .tab').forEach(function(x){x.classList.remove('on');});
+  el.classList.add('on');
+  // Re-create charts for tabs that were hidden during initial render
+  setTimeout(function(){
+    if (t === 'monthly' && !chartsRendered.monthly) { createMonthlyCharts(); chartsRendered.monthly = true; }
+    if (t === 'trend' && !chartsRendered.trend) { createTrendCharts(); chartsRendered.trend = true; }
+    if (t === 'combined' && !chartsRendered.combined) { createCombinedCharts(); chartsRendered.combined = true; }
+    if (t === 'product' && !chartsRendered.product) { createProductCharts(); chartsRendered.product = true; }
+    for(var k in charts){try{charts[k].resize();}catch(e){}}
+  },150);
+}
+
+// =================== RENDER HELPERS ===================
+function eqStr(yVar,beta,vars){if(vars.length===1)return yVar+' = '+beta[1].toFixed(4)+' × '+vars[0]+' + ('+beta[0].toFixed(4)+')';var s=yVar+' = '+beta[0].toFixed(4);vars.forEach(function(v,i){var c=beta[i+1];s+=' '+(c>=0?'+':'-')+' '+Math.abs(c).toFixed(4)+' × '+v;});return s;}
+function statsHTML(r){if(!r)return '<p>ข้อมูลไม่เพียงพอ</p>';var fpStr=r.Fp<.0001?'<0.0001':r.Fp.toFixed(4);var fpClass=r.Fp<.05?'ok':'no';var pSummary='';if(r.pV&&r.pV.length>1){var pParts=[];for(var pi=1;pi<r.pV.length;pi++){var pval=r.pV[pi];pParts.push('β'+pi+': '+(pval<.0001?'<0.0001':pval.toFixed(4))+(pval<.05?' ✓':' ✗'));}pSummary='<div style="margin-top:6px;padding:8px 12px;background:#f8fafc;border:1px solid var(--bd);border-radius:8px;font-size:.78rem"><b>P-Values:</b> F-test='+fpStr+(r.Fp<.05?' ✓':' ✗')+' | '+pParts.join(' | ')+'</div>';}else{pSummary='<div style="margin-top:6px;padding:8px 12px;background:#f8fafc;border:1px solid var(--bd);border-radius:8px;font-size:.78rem"><b>P-Value (F-test):</b> '+fpStr+(r.Fp<.05?' ✓':' ✗')+'</div>';}return '<div class="st"><div class="s '+(r.R2>=.75?'ok':'no')+'"><div class="v">'+(r.R2*100).toFixed(2)+'%</div><div class="l">R²</div></div><div class="s '+(r.aR2>=.75?'ok':'no')+'"><div class="v">'+(r.aR2*100).toFixed(2)+'%</div><div class="l">Adj R²</div></div><div class="s"><div class="v">'+r.SE.toFixed(1)+'</div><div class="l">SE</div></div><div class="s '+(r.CV<=25?'ok':'no')+'"><div class="v">'+r.CV.toFixed(1)+'%</div><div class="l">CV(RMSE)</div></div><div class="s"><div class="v">'+r.F.toFixed(1)+'</div><div class="l">F-stat</div></div><div class="s '+fpClass+'"><div class="v">'+fpStr+'</div><div class="l">P-Value (F)</div></div><div class="s"><div class="v">'+r.n+'</div><div class="l">n</div></div></div>'+pSummary;}
+function sigBadge(p){return p<.05?'<span class="badge badge-g">'+(p<.001?'***':p<.01?'**':'*')+'</span>':'<span class="badge badge-r">ns</span>';}
+function destroyC(prefix){for(var k in charts){if(k.indexOf(prefix)===0){charts[k].destroy();delete charts[k];}}}
+
+// =================== RENDER: COMBINED ===================
+function renderCombined(){try{destroyC('comb_');if(!R.combined){document.getElementById('t-combined').innerHTML='<p>ไม่มีข้อมูลเพียงพอ</p>';return;}var c=R.combined;var html='';R.xSel.forEach(function(xv){var r=c.simple[xv];if(!r)return;html+='<div class="mcard"><div class="hd"><h3>📈 '+xv+'</h3>'+sigBadge(r.pV[1])+'</div><div class="bd"><div class="eq">'+eqStr(R.yVar,[r.beta[0],r.beta[1]],[xv])+'</div>'+statsHTML(r)+'<div class="grid2"><div class="ch"><canvas id="comb_'+safeId(xv)+'_sc"></canvas></div><div class="ch"><canvas id="comb_'+safeId(xv)+'_re"></canvas></div></div></div></div>';});if(c.multi){html+='<div class="mcard"><div class="hd"><h3>🔗 Multiple Regression</h3></div><div class="bd"><div class="eq green">'+eqStr(R.yVar,c.multi.beta,R.xSel)+'</div>'+statsHTML(c.multi)+'<div class="grid2"><div class="ch"><canvas id="comb_multi_ap"></canvas></div><div class="ch"><canvas id="comb_multi_cu"></canvas></div></div></div></div>';}document.getElementById('t-combined').innerHTML=html;chartsRendered.combined=false;setTimeout(function(){createCombinedCharts();chartsRendered.combined=true;},150);}catch(err){setStatus('❌ Error แสดงผลรวม: '+err.message,'err');console.error(err);}}
+
+function createCombinedCharts(){try{destroyC('comb_');if(!R.combined)return;var c=R.combined;R.xSel.forEach(function(xv){var r=c.simple[xv];if(!r)return;var xD=c.valid.map(function(row){return row[xv];}),yD=c.Y;var xMn=Math.min.apply(null,xD),xMx=Math.max.apply(null,xD);charts['comb_'+safeId(xv)+'_sc']=new Chart(document.getElementById('comb_'+safeId(xv)+'_sc'),{type:'scatter',data:{datasets:[{label:'Data',data:xD.map(function(x,i){return{x:x,y:yD[i]};}),backgroundColor:'#2563eb',pointRadius:3},{label:'Baseline',data:[{x:xMn,y:r.beta[0]+r.beta[1]*xMn},{x:xMx,y:r.beta[0]+r.beta[1]*xMx}],type:'line',borderColor:'#dc2626',borderWidth:2,pointRadius:0}]},options:{responsive:true,maintainAspectRatio:false,scales:{x:{title:{display:true,text:xv}},y:{title:{display:true,text:R.yVar}}}}});charts['comb_'+safeId(xv)+'_re']=new Chart(document.getElementById('comb_'+safeId(xv)+'_re'),{type:'scatter',data:{datasets:[{label:'Residual',data:r.pred.map(function(p,i){return{x:p,y:r.resi[i]};}),backgroundColor:'#8b5cf6',pointRadius:3},{label:'Zero',data:[{x:Math.min.apply(null,r.pred),y:0},{x:Math.max.apply(null,r.pred),y:0}],type:'line',borderColor:'#94a3b8',borderDash:[5,5],pointRadius:0}]},options:{responsive:true,maintainAspectRatio:false,scales:{x:{title:{display:true,text:'Predicted'}},y:{title:{display:true,text:'Residual'}}}}});});if(c.multi){var labels=c.valid.map(function(_,i){return '#'+(i+1);});charts.comb_multi_ap=new Chart(document.getElementById('comb_multi_ap'),{type:'line',data:{labels:labels,datasets:[{label:'Actual',data:c.Y,borderColor:'#2563eb',pointRadius:2,tension:.3,fill:false},{label:'Predicted',data:c.multi.pred.slice(),borderColor:'#dc2626',borderDash:[6,3],pointRadius:2,tension:.3,fill:false}]},options:{responsive:true,maintainAspectRatio:false}});var cum=0;var cusum=c.multi.resi.map(function(r){cum+=r;return cum;});charts.comb_multi_cu=new Chart(document.getElementById('comb_multi_cu'),{type:'line',data:{labels:labels,datasets:[{label:'CUSUM',data:cusum,borderColor:'#16a34a',backgroundColor:'rgba(22,163,74,.1)',fill:true,pointRadius:2,tension:.3},{label:'Zero',data:Array(c.Y.length).fill(0),borderColor:'#94a3b8',borderDash:[5,5],pointRadius:0}]},options:{responsive:true,maintainAspectRatio:false}});}}catch(err){console.error('Combined charts error:',err);}}
+
+function safeId(s){
+  // Convert Thai month names to unique index, keep alphanumeric
+  var thm = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  var out = s;
+  for (var i = 0; i < thm.length; i++) {
+    if (out.indexOf(thm[i]) >= 0) { out = out.replace(thm[i], 'M' + (i + 1) + '_'); break; }
+  }
+  return out.replace(/[^a-zA-Z0-9_]/g, '');
+}
+
+// =================== RENDER: MONTHLY ===================
+function renderMonthly(){try{destroyC('mon_');var html='';for(var mn in R.months){var md=R.months[mn];html+='<div class="mcard"><div class="hd"><h3>📅 '+mn+'</h3><span style="font-size:.8rem;color:var(--tx2)">n='+md.n+'</span></div><div class="bd">';R.xSel.forEach(function(xv){var r=md.simple[xv];if(!r)return;var id='mon_'+safeId(mn)+'_'+safeId(xv);html+='<div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--bd)"><div style="display:flex;justify-content:space-between;align-items:center"><b>'+xv+'</b> '+sigBadge(r.pV[1])+'</div><div class="mini"><span>R²=<b>'+(r.R2*100).toFixed(1)+'%</b></span><span>Slope=<b>'+r.beta[1].toFixed(4)+'</b></span><span>SE=<b>'+r.SE.toFixed(1)+'</b></span><span>CV=<b>'+r.CV.toFixed(1)+'%</b></span></div><div class="eq" style="font-size:.82rem;padding:10px">'+eqStr(R.yVar,[r.beta[0],r.beta[1]],[xv])+'</div><div class="ch" style="height:240px"><canvas id="'+id+'"></canvas></div></div>';});if(md.multi){html+='<div class="eq green" style="font-size:.82rem;padding:10px">'+eqStr(R.yVar,md.multi.beta,R.xSel)+'</div><div class="mini"><span>R²=<b>'+(md.multi.R2*100).toFixed(1)+'%</b></span><span>Adj R²=<b>'+(md.multi.aR2*100).toFixed(1)+'%</b></span></div>';}html+='</div></div>';}document.getElementById('t-monthly').innerHTML=html;chartsRendered.monthly=false;}catch(err){setStatus('❌ Error Monthly: '+err.message,'err');console.error(err);}}
+
+function createMonthlyCharts(){try{destroyC('mon_');for(var mn2 in R.months){var md2=R.months[mn2];R.xSel.forEach(function(xv){var r=md2.simple[xv];if(!r)return;var id='mon_'+safeId(mn2)+'_'+safeId(xv);var el=document.getElementById(id);if(!el)return;var xD=md2.valid.map(function(row){return row[xv];}),xMn=Math.min.apply(null,xD),xMx=Math.max.apply(null,xD);charts[id]=new Chart(el,{type:'scatter',data:{datasets:[{label:'Data',data:xD.map(function(x,i){return{x:x,y:md2.Y[i]};}),backgroundColor:'#2563eb',pointRadius:3},{label:'Baseline',data:[{x:xMn,y:r.beta[0]+r.beta[1]*xMn},{x:xMx,y:r.beta[0]+r.beta[1]*xMx}],type:'line',borderColor:'#dc2626',borderWidth:2,pointRadius:0}]},options:{responsive:true,maintainAspectRatio:false,scales:{x:{title:{display:true,text:xv}},y:{title:{display:true,text:R.yVar}}}}});});}}catch(err){console.error('Monthly charts error:',err);}}
+
+// =================== RENDER: COMPARE ===================
+function renderCompare(){try{var mns=Object.keys(R.months);var html='';R.xSel.forEach(function(xv){html+='<h3 style="font-size:.92rem;margin:12px 0 6px">📊 '+xv+'</h3><div class="tbl-w" style="max-height:none"><table><thead><tr><th>เดือน</th><th>n</th><th>R²</th><th>Adj R²</th><th>Slope</th><th>Intercept</th><th>SE</th><th>CV%</th><th>p-value</th></tr></thead><tbody>';var bestR2=-1,bestMn='';mns.forEach(function(mn){var r=R.months[mn].simple[xv];if(r&&r.R2>bestR2){bestR2=r.R2;bestMn=mn;}});mns.forEach(function(mn){var r=R.months[mn].simple[xv];if(!r)return;html+='<tr class="'+(mn===bestMn?'best-row':'')+'"><td>'+mn+'</td><td>'+r.n+'</td><td>'+(r.R2*100).toFixed(2)+'%</td><td>'+(r.aR2*100).toFixed(2)+'%</td><td>'+r.beta[1].toFixed(4)+'</td><td>'+r.beta[0].toFixed(2)+'</td><td>'+r.SE.toFixed(1)+'</td><td>'+r.CV.toFixed(1)+'%</td><td>'+(r.pV[1]<.0001?'<0.0001':r.pV[1].toFixed(4))+'</td></tr>';});if(R.combined){var r2=R.combined.simple[xv];if(r2)html+='<tr style="background:#eff6ff;font-weight:600"><td>รวม</td><td>'+r2.n+'</td><td>'+(r2.R2*100).toFixed(2)+'%</td><td>'+(r2.aR2*100).toFixed(2)+'%</td><td>'+r2.beta[1].toFixed(4)+'</td><td>'+r2.beta[0].toFixed(2)+'</td><td>'+r2.SE.toFixed(1)+'</td><td>'+r2.CV.toFixed(1)+'%</td><td>'+(r2.pV[1]<.0001?'<0.0001':r2.pV[1].toFixed(4))+'</td></tr>';}html+='</tbody></table></div>';});document.getElementById('t-compare').innerHTML=html;}catch(err){setStatus('❌ Error Compare: '+err.message,'err');console.error(err);}}
+
+// =================== RENDER: TREND ===================
+function renderTrend(){try{destroyC('trend_');var mns=Object.keys(R.months);var html='<div class="ch" style="height:350px"><canvas id="trend_r2"></canvas></div><div class="grid2" style="margin-top:14px"><div class="ch"><canvas id="trend_slope"></canvas></div><div class="ch"><canvas id="trend_cv"></canvas></div></div>';html+='<h3 style="font-size:.92rem;margin:16px 0 6px">📊 สรุปพลังงานรายเดือน</h3><div class="tbl-w" style="max-height:none"><table><thead><tr><th>เดือน</th><th>n</th><th>Total</th><th>Mean</th><th>Min</th><th>Max</th></tr></thead><tbody>';mns.forEach(function(mn){var Y=R.months[mn].Y;var sum=Y.reduce(function(a,b){return a+b;},0);var mean=sum/Y.length;html+='<tr><td>'+mn+'</td><td>'+Y.length+'</td><td>'+sum.toFixed(0)+'</td><td>'+mean.toFixed(1)+'</td><td>'+Math.min.apply(null,Y).toFixed(1)+'</td><td>'+Math.max.apply(null,Y).toFixed(1)+'</td></tr>';});html+='</tbody></table></div>';document.getElementById('t-trend').innerHTML=html;chartsRendered.trend=false;}catch(err){setStatus('❌ Error Trend: '+err.message,'err');console.error(err);}}
+
+function createTrendCharts(){try{destroyC('trend_');var mns=Object.keys(R.months);var colors=['#2563eb','#dc2626','#16a34a','#f59e0b','#8b5cf6','#ec4899'];charts.trend_r2=new Chart(document.getElementById('trend_r2'),{type:'line',data:{labels:mns,datasets:R.xSel.map(function(xv,i){return{label:xv+' R²%',data:mns.map(function(mn){var r=R.months[mn].simple[xv];return r?r.R2*100:null;}),borderColor:colors[i%6],pointRadius:5,tension:.3,fill:false};})},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'R² Trend'}},scales:{y:{min:0,max:100}}}});charts.trend_slope=new Chart(document.getElementById('trend_slope'),{type:'line',data:{labels:mns,datasets:R.xSel.map(function(xv,i){return{label:xv,data:mns.map(function(mn){var r=R.months[mn].simple[xv];return r?r.beta[1]:null;}),borderColor:colors[i%6],pointRadius:5,tension:.3,fill:false};})},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'Slope Trend'}}}});charts.trend_cv=new Chart(document.getElementById('trend_cv'),{type:'line',data:{labels:mns,datasets:R.xSel.map(function(xv,i){return{label:xv,data:mns.map(function(mn){var r=R.months[mn].simple[xv];return r?r.CV:null;}),borderColor:colors[i%6],pointRadius:5,tension:.3,fill:false};})},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'CV(RMSE)% Trend'}}}});}catch(err){console.error('Trend charts error:',err);}}
+
+// =================== RENDER: PRODUCT ANALYSIS ===================
+function renderProduct(){
+try{
+  destroyC('prod_');
+  // Gather all rows from selected months (not just regression-valid rows)
+  var allRows = [];
+  for(var mk in allMonths){
+    if(allMonths[mk].selected){
+      allMonths[mk].rows.forEach(function(r){ allRows.push(r); });
+    }
+  }
+  if(allRows.length === 0){document.getElementById('t-product').innerHTML='<p>ไม่มีข้อมูล — เลือกช่วงเดือนแล้วกด วิเคราะห์</p>';return;}
+
+  // Group by Product (เบอร์ยาง)
+  var prodKey = 'Product';
+  var products = {};
+  allRows.forEach(function(r){
+    var p = r[prodKey];
+    if(!p || typeof p !== 'string' || p.trim() === '') return;
+    p = p.trim();
+    if(!products[p]) products[p] = { count:0, totalKwh:0, totalKg:0, batches:0, rows:[] };
+    products[p].count++;
+    var kwh = typeof r['Actual'] === 'number' ? r['Actual'] : (typeof r['Total kWh'] === 'number' ? r['Total kWh'] : 0);
+    var kg = typeof r['Weight Input'] === 'number' ? r['Weight Input'] : 0;
+    var batch = typeof r['Batch'] === 'number' ? r['Batch'] : 0;
+    products[p].totalKwh += kwh;
+    products[p].totalKg += kg;
+    products[p].batches += batch;
+    products[p].rows.push(r);
+  });
+
+  var pNames = Object.keys(products).sort(function(a,b){ return products[b].count - products[a].count; });
+  if(pNames.length === 0){document.getElementById('t-product').innerHTML='<p>ไม่พบข้อมูลเบอร์ยาง (Product)</p>';return;}
+
+  var totalAll = allRows.length;
+  var totalKwhAll = 0, totalKgAll = 0;
+  pNames.forEach(function(p){ totalKwhAll += products[p].totalKwh; totalKgAll += products[p].totalKg; });
+
+  // Build HTML
+  var html = '';
+
+  // Section 1: Production Proportion
+  html += '<div class="mcard"><div class="hd"><h3>🏭 สัดส่วนการผลิตตามเบอร์ยาง (F-RCMDS-C-015)</h3></div><div class="bd">';
+  html += '<div class="grid2"><div class="ch" style="height:320px"><canvas id="prod_pie"></canvas></div>';
+  html += '<div class="ch" style="height:320px"><canvas id="prod_bar_count"></canvas></div></div>';
+
+  // Summary table - production
+  html += '<div class="tbl-w" style="max-height:none;margin-top:14px"><table><thead><tr>';
+  html += '<th>เบอร์ยาง</th><th>จำนวนครั้ง</th><th>สัดส่วน (%)</th><th>Batch รวม</th><th>น้ำหนักรวม (kg)</th>';
+  html += '</tr></thead><tbody>';
+  pNames.forEach(function(p){
+    var d = products[p];
+    var pct = (d.count / totalAll * 100).toFixed(1);
+    html += '<tr><td style="font-weight:600">'+p+'</td><td>'+d.count+'</td><td>'+pct+'%</td>';
+    html += '<td>'+d.batches.toFixed(0)+'</td><td>'+d.totalKg.toFixed(1)+'</td></tr>';
+  });
+  html += '<tr style="background:var(--bg);font-weight:700"><td>รวมทั้งหมด</td><td>'+totalAll+'</td><td>100%</td>';
+  html += '<td>'+pNames.reduce(function(s,p){return s+products[p].batches;},0).toFixed(0)+'</td>';
+  html += '<td>'+totalKgAll.toFixed(1)+'</td></tr>';
+  html += '</tbody></table></div></div></div>';
+
+  // Section 2: Energy per product (kWh/kg)
+  html += '<div class="mcard"><div class="hd"><h3>⚡ เปรียบเทียบการใช้พลังงาน kWh/kg ตามเบอร์ยาง</h3></div><div class="bd">';
+  html += '<div class="grid2"><div class="ch" style="height:320px"><canvas id="prod_kwh_kg"></canvas></div>';
+  html += '<div class="ch" style="height:320px"><canvas id="prod_kwh_total"></canvas></div></div>';
+
+  // Summary table - energy
+  html += '<div class="tbl-w" style="max-height:none;margin-top:14px"><table><thead><tr>';
+  html += '<th>เบอร์ยาง</th><th>พลังงานรวม (kWh)</th><th>น้ำหนักรวม (kg)</th><th>kWh/kg</th><th>สัดส่วนพลังงาน (%)</th><th>ระดับ</th>';
+  html += '</tr></thead><tbody>';
+
+  // Sort by kWh/kg for energy table
+  var pByEnergy = pNames.slice().sort(function(a,b){
+    var ra = products[a].totalKg > 0 ? products[a].totalKwh / products[a].totalKg : 999;
+    var rb = products[b].totalKg > 0 ? products[b].totalKwh / products[b].totalKg : 999;
+    return rb - ra;
+  });
+
+  pByEnergy.forEach(function(p){
+    var d = products[p];
+    var kwhPerKg = d.totalKg > 0 ? (d.totalKwh / d.totalKg) : 0;
+    var ePct = totalKwhAll > 0 ? (d.totalKwh / totalKwhAll * 100).toFixed(1) : '0.0';
+    var level = kwhPerKg > 0.5 ? 'สูง' : (kwhPerKg > 0.2 ? 'กลาง' : 'ต่ำ');
+    var lvlClass = kwhPerKg > 0.5 ? 'badge-r' : (kwhPerKg > 0.2 ? 'badge-g' : 'badge-g');
+    html += '<tr><td style="font-weight:600">'+p+'</td>';
+    html += '<td>'+d.totalKwh.toFixed(1)+'</td><td>'+d.totalKg.toFixed(1)+'</td>';
+    html += '<td style="font-weight:700">'+(d.totalKg > 0 ? kwhPerKg.toFixed(4) : '-')+'</td>';
+    html += '<td>'+ePct+'%</td>';
+    html += '<td><span class="badge '+lvlClass+'">'+level+'</span></td></tr>';
+  });
+
+  html += '<tr style="background:var(--bg);font-weight:700"><td>รวมทั้งหมด</td>';
+  html += '<td>'+totalKwhAll.toFixed(1)+'</td><td>'+totalKgAll.toFixed(1)+'</td>';
+  html += '<td>'+(totalKgAll > 0 ? (totalKwhAll/totalKgAll).toFixed(4) : '-')+'</td>';
+  html += '<td>100%</td><td></td></tr>';
+  html += '</tbody></table></div></div></div>';
+
+  // Section 3: Monthly energy by product
+  html += '<div class="mcard"><div class="hd"><h3>📅 kWh/kg รายเดือนตามเบอร์ยาง</h3></div><div class="bd">';
+  html += '<div class="ch" style="height:350px"><canvas id="prod_monthly_kwh"></canvas></div>';
+
+  // Monthly breakdown table — use all selected months from allMonths
+  var mns = [];
+  var selKeys = getSortedMonthKeys();
+  selKeys.forEach(function(k){ if(allMonths[k].selected && isThaiMonthKey(k)) mns.push(k); });
+  html += '<div class="tbl-w" style="max-height:none;margin-top:14px"><table><thead><tr><th>เบอร์ยาง</th>';
+  mns.forEach(function(mn){ html += '<th>'+mn+'</th>'; });
+  html += '<th>เฉลี่ย</th></tr></thead><tbody>';
+
+  // Top 8 products by count
+  var topProducts = pNames.slice(0, 8);
+  topProducts.forEach(function(p){
+    html += '<tr><td style="font-weight:600">'+p+'</td>';
+    var vals = [];
+    mns.forEach(function(mn){
+      var mRows = allMonths[mn].rows.filter(function(r){ return r[prodKey] && r[prodKey].trim() === p; });
+      var mKwh = 0, mKg = 0;
+      mRows.forEach(function(r){
+        mKwh += typeof r['Actual'] === 'number' ? r['Actual'] : 0;
+        mKg += typeof r['Weight Input'] === 'number' ? r['Weight Input'] : 0;
+      });
+      var v = mKg > 0 ? mKwh / mKg : 0;
+      vals.push(v);
+      html += '<td>'+(mKg > 0 ? v.toFixed(4) : '-')+'</td>';
+    });
+    var avg = vals.filter(function(v){return v>0;});
+    html += '<td style="font-weight:700">'+(avg.length > 0 ? (avg.reduce(function(a,b){return a+b;},0)/avg.length).toFixed(4) : '-')+'</td></tr>';
+  });
+  html += '</tbody></table></div></div></div>';
+
+  // ========== Section 4: Idle Time Analysis ==========
+  // Calculate time metrics per product
+  var idleData = {};
+  var globalKwhPerMin = [];
+  pNames.forEach(function(p){
+    var d = products[p];
+    var totalTime = 0, timeRows = 0;
+    var kwhPerMinArr = [];
+    d.rows.forEach(function(r){
+      var tMin = typeof r['Time (min)'] === 'number' ? r['Time (min)'] : 0;
+      var kwh = typeof r['Actual'] === 'number' ? r['Actual'] : 0;
+      if(tMin > 0){
+        totalTime += tMin;
+        timeRows++;
+        var kpm = kwh / tMin;
+        kwhPerMinArr.push(kpm);
+        globalKwhPerMin.push(kpm);
+      }
+    });
+    var avgTime = timeRows > 0 ? totalTime / timeRows : 0;
+    var avgKwhPerMin = kwhPerMinArr.length > 0 ? kwhPerMinArr.reduce(function(a,b){return a+b;},0)/kwhPerMinArr.length : 0;
+    // Idle indicator: runs where kWh is high but output (kg) is very low relative to time
+    var idleRuns = 0, idleKwh = 0;
+    d.rows.forEach(function(r){
+      var tMin = typeof r['Time (min)'] === 'number' ? r['Time (min)'] : 0;
+      var kwh = typeof r['Actual'] === 'number' ? r['Actual'] : 0;
+      var kg = typeof r['Weight Input'] === 'number' ? r['Weight Input'] : 0;
+      // Idle = has time & energy but very low output (kg/min < 10% of product avg)
+      var avgKgPerMin = (d.totalKg > 0 && totalTime > 0) ? d.totalKg / totalTime : 0;
+      if(tMin > 0 && kwh > 0){
+        var kgPerMin = kg / tMin;
+        if(avgKgPerMin > 0 && kgPerMin < avgKgPerMin * 0.1){
+          idleRuns++;
+          idleKwh += kwh;
+        }
+      }
+    });
+    idleData[p] = { totalTime:totalTime, timeRows:timeRows, avgTime:avgTime, avgKwhPerMin:avgKwhPerMin, kwhPerMinArr:kwhPerMinArr, idleRuns:idleRuns, idleKwh:idleKwh };
+  });
+
+  html += '<div class="mcard"><div class="hd"><h3>⏱️ Idle Time — เวลาที่ไม่มีผลผลิต / ผลผลิตต่ำ</h3></div><div class="bd">';
+  html += '<div class="grid2"><div class="ch" style="height:320px"><canvas id="prod_idle_time"></canvas></div>';
+  html += '<div class="ch" style="height:320px"><canvas id="prod_kwh_per_min"></canvas></div></div>';
+
+  // Idle time summary table
+  html += '<div class="tbl-w" style="max-height:none;margin-top:14px"><table><thead><tr>';
+  html += '<th>เบอร์ยาง</th><th>เวลารวม (นาที)</th><th>เวลาเฉลี่ย/ครั้ง</th><th>kWh/นาที</th><th>Idle Runs</th><th>Idle kWh</th><th>% Idle Energy</th><th>ประสิทธิภาพ</th>';
+  html += '</tr></thead><tbody>';
+  pNames.forEach(function(p){
+    var id = idleData[p], d = products[p];
+    var idlePct = d.totalKwh > 0 ? (id.idleKwh / d.totalKwh * 100) : 0;
+    var effClass = idlePct > 10 ? 'badge-r' : (idlePct > 5 ? 'badge-r' : 'badge-g');
+    var effText = idlePct > 10 ? 'ต้องปรับปรุง' : (idlePct > 5 ? 'พอใช้' : 'ดี');
+    html += '<tr><td style="font-weight:600">'+p+'</td>';
+    html += '<td>'+id.totalTime.toFixed(0)+'</td>';
+    html += '<td>'+id.avgTime.toFixed(1)+' นาที</td>';
+    html += '<td>'+id.avgKwhPerMin.toFixed(3)+'</td>';
+    html += '<td>'+(id.idleRuns > 0 ? '<span style="color:var(--r);font-weight:700">'+id.idleRuns+'</span>' : '0')+'</td>';
+    html += '<td>'+(id.idleKwh > 0 ? id.idleKwh.toFixed(1) : '-')+'</td>';
+    html += '<td>'+(idlePct > 0 ? idlePct.toFixed(1)+'%' : '-')+'</td>';
+    html += '<td><span class="badge '+effClass+'">'+effText+'</span></td></tr>';
+  });
+  var totalIdleKwh = 0; pNames.forEach(function(p){ totalIdleKwh += idleData[p].idleKwh; });
+  var totalIdlePct = totalKwhAll > 0 ? (totalIdleKwh/totalKwhAll*100) : 0;
+  html += '<tr style="background:var(--bg);font-weight:700"><td>รวม</td>';
+  html += '<td>'+pNames.reduce(function(s,p){return s+idleData[p].totalTime;},0).toFixed(0)+'</td>';
+  html += '<td>-</td><td>-</td>';
+  html += '<td>'+pNames.reduce(function(s,p){return s+idleData[p].idleRuns;},0)+'</td>';
+  html += '<td>'+totalIdleKwh.toFixed(1)+'</td>';
+  html += '<td>'+totalIdlePct.toFixed(1)+'%</td><td></td></tr>';
+  html += '</tbody></table></div></div></div>';
+
+  // ========== Section 5: Anomaly Detection ==========
+  // For each product: IQR on kWh/kg to find outliers
+  var anomalyData = {};
+  var anomalySummary = [];
+  pNames.forEach(function(p){
+    var d = products[p];
+    var vals = [];
+    d.rows.forEach(function(r){
+      var kwh = typeof r['Actual'] === 'number' ? r['Actual'] : 0;
+      var kg = typeof r['Weight Input'] === 'number' ? r['Weight Input'] : 0;
+      var tMin = typeof r['Time (min)'] === 'number' ? r['Time (min)'] : 0;
+      if(kg > 0 && kwh > 0) vals.push({ kwhPerKg: kwh/kg, kwh:kwh, kg:kg, tMin:tMin, row:r });
+    });
+    if(vals.length < 4){ anomalyData[p] = { vals:vals, outliers:[], q1:0, q3:0, median:0, iqr:0 }; return; }
+    vals.sort(function(a,b){ return a.kwhPerKg - b.kwhPerKg; });
+    var q1Idx = Math.floor(vals.length * 0.25);
+    var q3Idx = Math.floor(vals.length * 0.75);
+    var medIdx = Math.floor(vals.length * 0.5);
+    var q1 = vals[q1Idx].kwhPerKg, q3 = vals[q3Idx].kwhPerKg, median = vals[medIdx].kwhPerKg;
+    var iqr = q3 - q1;
+    var upperFence = q3 + 1.5 * iqr;
+    var lowerFence = q1 - 1.5 * iqr;
+    var outliers = vals.filter(function(v){ return v.kwhPerKg > upperFence || v.kwhPerKg < lowerFence; });
+    var normals = vals.filter(function(v){ return v.kwhPerKg <= upperFence && v.kwhPerKg >= lowerFence; });
+    var avgNormal = normals.length > 0 ? normals.reduce(function(s,v){return s+v.kwhPerKg;},0)/normals.length : 0;
+    var avgOutlier = outliers.length > 0 ? outliers.reduce(function(s,v){return s+v.kwhPerKg;},0)/outliers.length : 0;
+    var excessKwh = 0;
+    outliers.forEach(function(o){ if(o.kwhPerKg > upperFence) excessKwh += (o.kwhPerKg - avgNormal) * o.kg; });
+    anomalyData[p] = { vals:vals, outliers:outliers, normals:normals, q1:q1, q3:q3, median:median, iqr:iqr, upperFence:upperFence, lowerFence:lowerFence, avgNormal:avgNormal, avgOutlier:avgOutlier, excessKwh:excessKwh };
+    if(outliers.length > 0){
+      anomalySummary.push({ product:p, outlierCount:outliers.length, totalCount:vals.length, pct:(outliers.length/vals.length*100), avgNormal:avgNormal, avgOutlier:avgOutlier, increase:avgNormal>0?((avgOutlier-avgNormal)/avgNormal*100):0, excessKwh:excessKwh });
+    }
+  });
+  anomalySummary.sort(function(a,b){ return b.excessKwh - a.excessKwh; });
+
+  html += '<div class="mcard"><div class="hd"><h3>⚠️ พฤติกรรมผิดปกติ — Anomaly Detection (IQR Method)</h3></div><div class="bd">';
+  html += '<p style="font-size:.84rem;color:var(--tx2);margin-bottom:12px">วิเคราะห์ค่า kWh/kg ที่เบี่ยงเบนจากปกติ (IQR × 1.5) เพื่อระบุพฤติกรรมที่ส่งผลให้การใช้พลังงานเพิ่มขึ้น</p>';
+  html += '<div class="grid2"><div class="ch" style="height:350px"><canvas id="prod_anomaly_scatter"></canvas></div>';
+  html += '<div class="ch" style="height:350px"><canvas id="prod_anomaly_bar"></canvas></div></div>';
+
+  // Anomaly summary table
+  if(anomalySummary.length > 0){
+    html += '<div class="tbl-w" style="max-height:none;margin-top:14px"><table><thead><tr>';
+    html += '<th>เบอร์ยาง</th><th>Outliers</th><th>ทั้งหมด</th><th>% ผิดปกติ</th><th>kWh/kg ปกติ</th><th>kWh/kg ผิดปกติ</th><th>% เพิ่มขึ้น</th><th>พลังงานสูญเสีย (kWh)</th><th>สถานะ</th>';
+    html += '</tr></thead><tbody>';
+    var totalExcess = 0;
+    anomalySummary.forEach(function(a){
+      totalExcess += a.excessKwh;
+      var sevClass = a.pct > 15 ? 'badge-r' : (a.pct > 5 ? 'badge-r' : 'badge-g');
+      var sevText = a.pct > 15 ? 'วิกฤต' : (a.pct > 5 ? 'เฝ้าระวัง' : 'ปกติ');
+      html += '<tr><td style="font-weight:600">'+a.product+'</td>';
+      html += '<td style="color:var(--r);font-weight:700">'+a.outlierCount+'</td>';
+      html += '<td>'+a.totalCount+'</td>';
+      html += '<td>'+a.pct.toFixed(1)+'%</td>';
+      html += '<td>'+a.avgNormal.toFixed(4)+'</td>';
+      html += '<td style="color:var(--r)">'+a.avgOutlier.toFixed(4)+'</td>';
+      html += '<td style="color:var(--r);font-weight:700">'+(a.increase > 0 ? '+' : '')+a.increase.toFixed(1)+'%</td>';
+      html += '<td style="font-weight:700">'+a.excessKwh.toFixed(1)+'</td>';
+      html += '<td><span class="badge '+sevClass+'">'+sevText+'</span></td></tr>';
+    });
+    html += '<tr style="background:var(--bg);font-weight:700"><td>รวมพลังงานสูญเสีย</td>';
+    html += '<td colspan="6"></td><td style="color:var(--r)">'+totalExcess.toFixed(1)+' kWh</td><td></td></tr>';
+    html += '</tbody></table></div>';
+  } else {
+    html += '<div style="padding:16px;text-align:center;color:var(--g);font-weight:600">✅ ไม่พบพฤติกรรมผิดปกติในข้อมูลที่เลือก</div>';
+  }
+
+  // Detailed anomaly insights
+  html += '<div style="margin-top:14px;padding:14px;background:linear-gradient(135deg,#fef3c7,#fff7ed);border:1px solid #fbbf24;border-radius:10px">';
+  html += '<h4 style="margin-bottom:8px;color:#92400e">📋 สรุปผลวิเคราะห์พฤติกรรมผิดปกติ</h4>';
+  if(anomalySummary.length > 0){
+    html += '<ul style="margin:0;padding-left:20px;font-size:.84rem;color:#78350f">';
+    anomalySummary.forEach(function(a){
+      html += '<li style="margin-bottom:6px"><b>'+a.product+'</b>: พบ '+a.outlierCount+' ครั้ง จาก '+a.totalCount+' ครั้ง ('+a.pct.toFixed(1)+'%) — ';
+      html += 'ค่า kWh/kg เพิ่มขึ้นเฉลี่ย <b>'+(a.increase>0?'+':'')+a.increase.toFixed(1)+'%</b> จากค่าปกติ';
+      if(a.excessKwh > 0) html += ' คิดเป็นพลังงานสูญเสีย <b>'+a.excessKwh.toFixed(1)+' kWh</b>';
+      // Possible causes
+      var causes = [];
+      if(a.increase > 50) causes.push('เครื่องจักรเดินเปล่านาน');
+      if(a.pct > 15) causes.push('สภาพวัตถุดิบไม่สม่ำเสมอ');
+      var ad = anomalyData[a.product];
+      if(ad && ad.outliers.length > 0){
+        var highTime = ad.outliers.filter(function(o){ return o.tMin > 0 && ad.vals.length > 0; });
+        var avgTimeNorm = ad.normals && ad.normals.length > 0 ? ad.normals.reduce(function(s,v){return s+v.tMin;},0)/ad.normals.length : 0;
+        var avgTimeOut = highTime.length > 0 ? highTime.reduce(function(s,v){return s+v.tMin;},0)/highTime.length : 0;
+        if(avgTimeNorm > 0 && avgTimeOut > avgTimeNorm * 1.3) causes.push('ใช้เวลาผลิตนานกว่าปกติ ('+(avgTimeOut).toFixed(0)+' vs '+(avgTimeNorm).toFixed(0)+' นาที)');
+      }
+      if(causes.length > 0) html += '<br><span style="color:#b45309">→ สาเหตุที่เป็นไปได้: '+causes.join(', ')+'</span>';
+      html += '</li>';
+    });
+    html += '</ul>';
+    var totalExcessAll = anomalySummary.reduce(function(s,a){return s+a.excessKwh;},0);
+    if(totalExcessAll > 0){
+      html += '<div style="margin-top:10px;padding:10px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;font-size:.84rem;color:#991b1b">';
+      html += '<b>💡 ข้อเสนอแนะ:</b> พลังงานสูญเสียจากพฤติกรรมผิดปกติรวม <b>'+totalExcessAll.toFixed(1)+' kWh</b>';
+      if(totalKwhAll > 0) html += ' ('+((totalExcessAll/totalKwhAll)*100).toFixed(2)+'% ของพลังงานทั้งหมด)';
+      html += ' — ควรตรวจสอบ: กระบวนการ Setup เครื่อง, เวลา Idle ระหว่าง Batch, และสภาพวัตถุดิบ</div>';
+    }
+  } else {
+    html += '<p style="font-size:.84rem;color:#166534">ไม่พบค่าผิดปกติในช่วงที่เลือก — การใช้พลังงานอยู่ในเกณฑ์ปกติ</p>';
+  }
+  html += '</div></div></div>';
+
+  // Store product data for chart creation
+  R.productData = { products:products, pNames:pNames, topProducts:topProducts, totalAll:totalAll, totalKwhAll:totalKwhAll, totalKgAll:totalKgAll, pByEnergy:pByEnergy, idleData:idleData, anomalyData:anomalyData, anomalySummary:anomalySummary, mns:mns };
+
+  document.getElementById('t-product').innerHTML = html;
+  chartsRendered.product = false;
+}catch(err){setStatus('❌ Error Product: '+err.message,'err');console.error(err);}
+}
+
+function createProductCharts(){
+try{
+  destroyC('prod_');
+  if(!R.productData) return;
+  var pd = R.productData;
+  var colors = ['#2563eb','#dc2626','#16a34a','#f59e0b','#8b5cf6','#ec4899','#0891b2','#84cc16','#f43f5e','#6366f1','#14b8a6','#e879f9'];
+
+  // Pie chart - production proportion
+  charts.prod_pie = new Chart(document.getElementById('prod_pie'),{
+    type:'doughnut',
+    data:{
+      labels: pd.pNames,
+      datasets:[{data: pd.pNames.map(function(p){return pd.products[p].count;}),
+        backgroundColor: pd.pNames.map(function(_,i){return colors[i % colors.length];}),
+        borderWidth:1}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{title:{display:true,text:'สัดส่วนการผลิต (จำนวนครั้ง)'},
+        legend:{position:'right',labels:{font:{size:11},boxWidth:12}}}}
+  });
+
+  // Bar chart - production count
+  charts.prod_bar_count = new Chart(document.getElementById('prod_bar_count'),{
+    type:'bar',
+    data:{
+      labels: pd.pNames,
+      datasets:[{label:'จำนวนครั้งผลิต',
+        data: pd.pNames.map(function(p){return pd.products[p].count;}),
+        backgroundColor: pd.pNames.map(function(_,i){return colors[i % colors.length]+'cc';})}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+      plugins:{title:{display:true,text:'จำนวนครั้งการผลิตตามเบอร์ยาง'},legend:{display:false}},
+      scales:{x:{title:{display:true,text:'จำนวนครั้ง'}}}}
+  });
+
+  // Bar chart - kWh/kg comparison
+  var kwhKgData = pd.pByEnergy.map(function(p){
+    return pd.products[p].totalKg > 0 ? pd.products[p].totalKwh / pd.products[p].totalKg : 0;
+  });
+  charts.prod_kwh_kg = new Chart(document.getElementById('prod_kwh_kg'),{
+    type:'bar',
+    data:{
+      labels: pd.pByEnergy,
+      datasets:[{label:'kWh/kg',data:kwhKgData,
+        backgroundColor: pd.pByEnergy.map(function(p){
+          var v = pd.products[p].totalKg > 0 ? pd.products[p].totalKwh / pd.products[p].totalKg : 0;
+          return v > 0.5 ? '#dc2626cc' : (v > 0.2 ? '#f59e0bcc' : '#16a34acc');
+        })}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+      plugins:{title:{display:true,text:'เปรียบเทียบ kWh/kg ตามเบอร์ยาง'},legend:{display:false}},
+      scales:{x:{title:{display:true,text:'kWh/kg'}}}}
+  });
+
+  // Bar chart - total kWh
+  charts.prod_kwh_total = new Chart(document.getElementById('prod_kwh_total'),{
+    type:'bar',
+    data:{
+      labels: pd.pNames,
+      datasets:[{label:'พลังงานรวม (kWh)',
+        data: pd.pNames.map(function(p){return pd.products[p].totalKwh;}),
+        backgroundColor:'#2563ebcc'}]
+    },
+    options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+      plugins:{title:{display:true,text:'พลังงานรวม (kWh) ตามเบอร์ยาง'},legend:{display:false}},
+      scales:{x:{title:{display:true,text:'kWh'}}}}
+  });
+
+  // Line chart - monthly kWh/kg by product (use allMonths selected)
+  var mns = [];
+  var mnsKeys = getSortedMonthKeys();
+  mnsKeys.forEach(function(k){ if(allMonths[k].selected && isThaiMonthKey(k)) mns.push(k); });
+  var prodKey = 'Product';
+  charts.prod_monthly_kwh = new Chart(document.getElementById('prod_monthly_kwh'),{
+    type:'line',
+    data:{
+      labels: mns,
+      datasets: pd.topProducts.map(function(p,i){
+        return {
+          label: p,
+          data: mns.map(function(mn){
+            var mRows = allMonths[mn].rows.filter(function(r){return r[prodKey] && r[prodKey].trim()===p;});
+            var mKwh=0,mKg=0;
+            mRows.forEach(function(r){
+              mKwh += typeof r['Actual']==='number' ? r['Actual'] : 0;
+              mKg += typeof r['Weight Input']==='number' ? r['Weight Input'] : 0;
+            });
+            return mKg > 0 ? Math.round(mKwh/mKg*10000)/10000 : null;
+          }),
+          borderColor: colors[i % colors.length],
+          pointRadius: 4, tension: .3, fill: false
+        };
+      })
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{title:{display:true,text:'kWh/kg รายเดือนตามเบอร์ยาง'},
+        legend:{position:'bottom',labels:{font:{size:11},boxWidth:12}}},
+      scales:{y:{title:{display:true,text:'kWh/kg'}}}}
+  });
+
+  // ========== Idle Time Charts ==========
+  if(pd.idleData){
+    // Bar chart: average time per batch by product
+    var idleEl = document.getElementById('prod_idle_time');
+    if(idleEl){
+      charts.prod_idle_time = new Chart(idleEl,{
+        type:'bar',
+        data:{
+          labels: pd.pNames,
+          datasets:[
+            {label:'เวลาเฉลี่ย/ครั้ง (นาที)', data: pd.pNames.map(function(p){ return pd.idleData[p].avgTime; }),
+              backgroundColor:'#2563ebcc'},
+            {label:'Idle Runs', data: pd.pNames.map(function(p){ return pd.idleData[p].idleRuns; }),
+              backgroundColor:'#dc2626cc'}
+          ]
+        },
+        options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+          plugins:{title:{display:true,text:'เวลาเฉลี่ย/ครั้ง และ Idle Runs ตามเบอร์ยาง'}},
+          scales:{x:{title:{display:true,text:'นาที / จำนวนครั้ง'}}}}
+      });
+    }
+    // Bar chart: kWh per minute by product
+    var kpmEl = document.getElementById('prod_kwh_per_min');
+    if(kpmEl){
+      charts.prod_kwh_per_min = new Chart(kpmEl,{
+        type:'bar',
+        data:{
+          labels: pd.pNames,
+          datasets:[{label:'kWh/นาที', data: pd.pNames.map(function(p){ return pd.idleData[p].avgKwhPerMin; }),
+            backgroundColor: pd.pNames.map(function(p){
+              var v = pd.idleData[p].avgKwhPerMin;
+              return v > 10 ? '#dc2626cc' : (v > 5 ? '#f59e0bcc' : '#16a34acc');
+            })}]
+        },
+        options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',
+          plugins:{title:{display:true,text:'อัตราการใช้พลังงาน kWh/นาที ตามเบอร์ยาง'},legend:{display:false}},
+          scales:{x:{title:{display:true,text:'kWh/นาที'}}}}
+      });
+    }
+  }
+
+  // ========== Anomaly Charts ==========
+  if(pd.anomalyData){
+    // Scatter: kWh/kg per product with outlier highlighting
+    var scEl = document.getElementById('prod_anomaly_scatter');
+    if(scEl){
+      var datasets = [];
+      pd.topProducts.forEach(function(p,i){
+        var ad = pd.anomalyData[p];
+        if(!ad || ad.vals.length === 0) return;
+        var normalPts = ad.vals.filter(function(v){ return !ad.upperFence || (v.kwhPerKg <= ad.upperFence && v.kwhPerKg >= (ad.lowerFence||0)); });
+        var outlierPts = ad.outliers || [];
+        datasets.push({
+          label: p+' (ปกติ)',
+          data: normalPts.map(function(v){ return {x: v.kg, y: v.kwhPerKg}; }),
+          backgroundColor: colors[i % colors.length]+'88',
+          pointRadius: 3
+        });
+        if(outlierPts.length > 0){
+          datasets.push({
+            label: p+' (ผิดปกติ)',
+            data: outlierPts.map(function(v){ return {x: v.kg, y: v.kwhPerKg}; }),
+            backgroundColor: '#dc2626',
+            pointRadius: 5,
+            pointStyle: 'triangle'
+          });
+        }
+      });
+      charts.prod_anomaly_scatter = new Chart(scEl,{
+        type:'scatter',
+        data:{ datasets: datasets },
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{title:{display:true,text:'kWh/kg vs น้ำหนัก — จุดสามเหลี่ยมแดง = ค่าผิดปกติ'},
+            legend:{position:'bottom',labels:{font:{size:10},boxWidth:10}}},
+          scales:{x:{title:{display:true,text:'น้ำหนัก (kg)'}},y:{title:{display:true,text:'kWh/kg'}}}}
+      });
+    }
+    // Bar: excess kWh by product (anomaly impact)
+    var barEl = document.getElementById('prod_anomaly_bar');
+    if(barEl && pd.anomalySummary && pd.anomalySummary.length > 0){
+      var asNames = pd.anomalySummary.map(function(a){ return a.product; });
+      charts.prod_anomaly_bar = new Chart(barEl,{
+        type:'bar',
+        data:{
+          labels: asNames,
+          datasets:[
+            {label:'kWh/kg ปกติ', data: pd.anomalySummary.map(function(a){ return a.avgNormal; }), backgroundColor:'#16a34acc'},
+            {label:'kWh/kg ผิดปกติ', data: pd.anomalySummary.map(function(a){ return a.avgOutlier; }), backgroundColor:'#dc2626cc'}
+          ]
+        },
+        options:{responsive:true,maintainAspectRatio:false,
+          plugins:{title:{display:true,text:'เปรียบเทียบ kWh/kg ปกติ vs ผิดปกติ'}},
+          scales:{y:{title:{display:true,text:'kWh/kg'}}}}
+      });
+    } else if(barEl){
+      charts.prod_anomaly_bar = new Chart(barEl,{
+        type:'bar',
+        data:{labels:['ไม่พบข้อมูลผิดปกติ'],datasets:[{label:'',data:[0],backgroundColor:'#16a34a33'}]},
+        options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'✅ ไม่พบพฤติกรรมผิดปกติ'}}}
+      });
+    }
+  }
+
+}catch(err){console.error('Product charts error:',err);}
+}
+
+// =================== EXPORT ===================
+function exportAll(){try{if(!R.combined)return;var wb=XLSX.utils.book_new();var sum=[['Energy Baseline Multi-Month Report'],[new Date().toLocaleString('th-TH')],[],['Y:',R.yVar],['X:',R.xSel.join(', ')],[]];sum.push(['=== Equations ===']);R.xSel.forEach(function(xv){var r=R.combined.simple[xv];if(r)sum.push([eqStr(R.yVar,[r.beta[0],r.beta[1]],[xv]),'R²=',r.R2]);});if(R.combined.multi)sum.push([eqStr(R.yVar,R.combined.multi.beta,R.xSel),'R²=',R.combined.multi.R2]);XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(sum),'Summary');var comp=[['Comparison'],[]];R.xSel.forEach(function(xv){comp.push([xv]);comp.push(['Month','n','R²','Adj R²','Slope','Intercept','SE','CV%','p-value']);for(var mn in R.months){var r=R.months[mn].simple[xv];if(r)comp.push([mn,r.n,r.R2,r.aR2,r.beta[1],r.beta[0],r.SE,r.CV,r.pV[1]]);}comp.push([]);});XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(comp),'Comparison');var allRows=[['No.','Month'].concat(R.xSel).concat([R.yVar])];var idx=0;for(var mn2 in R.months){R.months[mn2].valid.forEach(function(row){allRows.push([++idx,mn2].concat(R.xSel.map(function(x){return row[x];})).concat([row[R.yVar]]));});}XLSX.utils.book_append_sheet(wb,XLSX.utils.aoa_to_sheet(allRows),'All Data');XLSX.writeFile(wb,'Baseline_MultiMonth_Report.xlsx');}catch(err){setStatus('❌ Error Export: '+err.message,'err');console.error(err);}}
+</script>
+</body>
+</html>
